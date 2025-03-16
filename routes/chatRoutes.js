@@ -2,8 +2,8 @@ const express = require('express');
 const { Pool } = require('pg');
 
 const pool = new Pool({
-    user: 'postgres',
-    host: 'localhost',
+    user: 'user',
+    host: 'couple-production.up.railway.app',
     database: 'chatdb',
     password: 'Nurwanto18', // Sesuaikan dengan PostgreSQL
     port: 5432,
