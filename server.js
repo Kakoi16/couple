@@ -7,6 +7,11 @@ const session = require('express-session');
 const http = require('http'); 
 const { Server } = require('socket.io'); 
 const { Pool } = require('pg');
+const { createClient } = require('@supabase/supabase-js');
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 const app = express();
 const port = 3000;
