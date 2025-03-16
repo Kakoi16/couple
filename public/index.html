@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parallax Scrolling Website</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Parallax effect */
+    .parallax {
+      background-attachment: fixed;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: cover;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white">
+
+  <!-- Parallax Section 1 -->
+  <div class="parallax h-screen flex items-center justify-center text-center" style="background-image: url('img/bg1.jpg');">
+    <div class="bg-black bg-opacity-50 p-10 rounded-lg">
+      <h1 class="text-4xl md:text-6xl font-extrabold">Welcome to Couple Website</h1>
+      <p class="mt-4 text-lg text-gray-300">Explore the couple web <span><a href="/registered">Y</a></span> & <span><a href="/registered"">K</a></span></p>
+      <a href="#section2" class="mt-6 px-6 py-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition duration-300 inline-block">
+        Explore More
+      </a>
+    </div>
+  </div>
+
+  <!-- Stories Section -->
+  <div id="section2" class="h-screen flex flex-col items-center justify-center bg-gray-800 p-6 md:p-12">
+    <h2 class="text-3xl md:text-4xl font-bold mb-4">Stories</h2>
+    <p class="text-lg text-gray-300 text-center max-w-2xl">Klik di bawah ini</p>
+    <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="bg-gray-700 p-6 rounded-lg shadow-lg flex flex-col items-center">
+        <img src="img/story1.jpg" class="w-full h-40 object-cover rounded-md" alt="Story Image">
+        <h3 class="text-lg md:text-xl font-semibold mt-4">Amazing Sunset</h3>
+        <p class="mt-2 text-gray-300">A beautiful sunset captured from the hills.</p>
+      </div>
+      <div class="bg-gray-700 p-6 rounded-lg shadow-lg flex flex-col items-center">
+        <video class="w-full h-40 rounded-md" controls>
+          <source src="videos/story1.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <h3 class="text-lg md:text-xl font-semibold mt-4">Adventure Begins</h3>
+        <p class="mt-2 text-gray-300">An exciting adventure through the mountains.</p>
+      </div>
+      <div class="bg-gray-700 p-6 rounded-lg shadow-lg flex flex-col items-center">
+        <img src="img/story2.jpg" class="w-full h-40 object-cover rounded-md" alt="Story Image">
+        <h3 class="text-lg md:text-xl font-semibold mt-4">City Lights</h3>
+        <p class="mt-2 text-gray-300">A stunning view of the city at night.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Parallax Section 3 -->
+  <div class="parallax h-screen flex items-center justify-center text-center" style="background-image: url('img/bg2.jpg');">
+    <div class="bg-black bg-opacity-50 p-10 rounded-lg">
+      <h2 class="text-3xl md:text-5xl font-bold">Discover More</h2>
+      <p class="mt-4 text-lg text-gray-300">Find out what makes this couple website special</p>
+    </div>
+  </div>
+
+  <script>
+    // Smooth scrolling effect
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        document.querySelector(this.getAttribute('href')).scrollIntoView({
+          behavior: 'smooth'
+        });
+      });
+    });
+  </script>
+
+</body>
+</html>

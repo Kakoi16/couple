@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+let currentUser = null;
+
+async function checkAuth() {
+    try {
+        const res = await fetch('/api/auth/check');
+        const data = await res.json();
+
+        if (!data.authenticated) {
+            window.location.href = "/register.html"; // Redirect ke register jika belum login
+        } else {
+            currentUser = data.user.username; // Simpan username saat ini
+            console.log("Logged in as:", currentUser);
+        }
+    } catch (error) {
+        console.error("Error checking authentication:", error);
+        window.location.href = "/register.html"; // Redirect jika ada kesalahan
+    }
+}
+
+document.addEventListener("DOMContentLoaded", checkAuth);
+
+
+function toggleSidebar() {
+    document.getElementById("sidebar").classList.toggle("-translate-x-full");
+}
+
+function showContent(page) {
+    let content = document.getElementById("main-content");
+
+    if (page === "users") {
+        fetchUsers(); // Panggil fetchUsers() yang sudah didefinisikan di bawah
+    } else {
+        content.innerHTML = `
+            <h2 class="text-xl font-semibold">${page.charAt(0).toUpperCase() + page.slice(1)}</h2>
+            <p class="text-gray-600">${page === "settings" ? "Adjust settings here." : "You have logged out."}</p>
+        `;
+    }
+}
+
+const socket = io(); // Inisialisasi koneksi WebSocket sekali saja di awal
+// **Tambahkan fungsi fetchUsers() di luar event listener**
+function fetchUsers() {
+    fetch('/api/users')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Gagal memuat: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(users => {
+            let content = document.getElementById("main-content");
+            content.innerHTML = `<h2 class="text-xl font-semibold">Users</h2><ul id="user-list"></ul>`;
+
+            let ul = document.getElementById("user-list");
+            users.forEach(user => {
+                let li = document.createElement("li");
+                li.classList.add("p-2", "border-b", "cursor-pointer");
+                li.textContent = user.username;
+                li.onclick = () => startChat(user.username);
+                ul.appendChild(li);
+            });
+        })
+        .catch(error => console.error("Error:", error));
+}
+
+
+function startChat(username) {
+    let content = document.getElementById("main-content");
+    content.innerHTML = `
+        <h2 class="text-xl font-semibold flex justify-between">
+            Chat with ${username}
+            <button onclick="deleteChat('${username}')" class="bg-red-500 text-white px-3 py-1 rounded-md text-sm">
+                Delete Chat
+            </button>
+        </h2>
+        <div id="chat-box" class="h-64 overflow-y-auto border p-3 bg-white rounded-md mt-2"></div>
+        <div class="mt-2 flex">
+            <input id="chat-input" type="text" class="flex-1 border p-2 rounded-l-md" placeholder="Type a message...">
+            <button onclick="sendMessage('${username}')" class="bg-blue-600 text-white px-4 py-2 rounded-r-md">Send</button>
+        </div>
+    `;
+
+    loadMessages(currentUser, username); // Ambil pesan lama
+
+    // Hapus event listener sebelumnya agar tidak bertumpuk
+    socket.off(`receiveMessage:${currentUser}`);
+    socket.on("deleteMessage", (data) => {
+    let messageElement = document.getElementById(`message-${data.messageId}`);
+    if (messageElement) {
+        messageElement.remove(); // Hapus dari tampilan
+    }
+});
+
+    // Tambahkan event listener baru untuk pesan masuk
+    socket.on(`receiveMessage:${currentUser}`, (data) => {
+        let chatBox = document.getElementById("chat-box");
+        let message = document.createElement("div");
+        message.classList.add("bg-gray-300", "text-black", "p-2", "rounded-md", "my-1", "w-max");
+        message.textContent = `${data.sender}: ${data.message}`;
+        chatBox.appendChild(message);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
+}
+
+
+socket.on("messageSaved", (msg) => {
+    let messageDiv = document.getElementById(`temp-${msg.sender}`);
+    if (messageDiv) {
+        messageDiv.id = `message-${msg.id}`; // Update ID agar bisa dihapus
+        messageDiv.innerHTML = `
+            ${msg.message} 
+            <button onclick="deleteMessageForMe(${msg.id})" class="text-xs text-gray-500 ml-2">🗑️</button>
+            <button onclick="deleteMessageForEveryone(${msg.id})" class="text-xs text-red-500 ml-2">🚮</button>
+        `;
+    }
+});
+
+// Tambahkan event listener agar penerima menerima pesan otomatis
+socket.on("newMessage", (msg) => {
+    appendMessage(msg, false); // false = bukan pesan pengirim
+});
+
+function sendMessage(receiver) {
+    let input = document.getElementById("chat-input");
+    let chatBox = document.getElementById("chat-box");
+
+    if (!currentUser) {
+        console.error("User belum terautentikasi!");
+        return;
+    }
+
+    if (input.value.trim() !== "") {
+        let messageText = input.value;
+        input.value = "";
+
+        let message = document.createElement("div");
+        message.id = `temp-${currentUser}`;
+        message.classList.add("bg-blue-500", "text-white", "p-2", "rounded-md", "my-1", "w-max", "ml-auto");
+        message.textContent = messageText;
+        chatBox.appendChild(message);
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        // Kirim ke server melalui WebSocket
+        socket.emit("sendMessage", {
+            sender: currentUser, 
+            receiver, 
+            message: messageText
+        });
+    }
+}
+
+
+
+async function loadMessages(sender, receiver) {
+    const chatBox = document.getElementById("chat-box");
+    chatBox.innerHTML = ""; // Kosongkan sebelum memuat pesan baru
+
+    try {
+        const res = await fetch(`/api/chat/messages/${sender}/${receiver}`);
+        if (!res.ok) throw new Error("Gagal mengambil pesan.");
+
+        const messages = await res.json();
+        if (!Array.isArray(messages)) throw new Error("Format data tidak valid.");
+
+        messages.forEach(msg => {
+            let message = document.createElement("div");
+            message.id = `message-${msg.id}`;
+            const isCurrentUser = msg.sender === sender;
+            message.classList.add(
+                isCurrentUser ? "bg-blue-500" : "bg-gray-300",
+                isCurrentUser ? "text-white" : "text-black",
+                "p-2", "rounded-md", "my-1", "w-max", "relative"
+            );
+
+            if (isCurrentUser) {
+                message.classList.add("ml-auto");
+            }
+
+            // **Tambahkan tombol hapus hanya jika pesan berasal dari database**
+            let deleteButtons = "";
+            if (msg.id) {
+                deleteButtons = `
+                    <button onclick="deleteMessageForMe(${msg.id})" class="text-xs text-gray-500 ml-2">🗑️</button>
+                    ${isCurrentUser ? `<button onclick="deleteMessageForEveryone(${msg.id})" class="text-xs text-red-500 ml-2">🚮</button>` : ""}
+                `;
+            }
+
+            message.innerHTML = `${msg.message} ${deleteButtons}`;
+            chatBox.appendChild(message);
+        });
+
+        chatBox.scrollTop = chatBox.scrollHeight; // Scroll ke bawah
+    } catch (error) {
+        console.error("Error loading messages:", error.message);
+        chatBox.innerHTML = `<p class="text-red-500">${error.message}</p>`;
+    }
+}
+
+
+
+function deleteMessageForMe(messageId) {
+    fetch(`/api/chat/delete-for-me/${messageId}/${currentUser}`, { method: "PUT" })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let messageElement = document.getElementById(`message-${messageId}`);
+                if (messageElement) {
+                    messageElement.remove(); // Hapus dari DOM
+                }
+            }
+        });
+}
+
+function deleteMessageForEveryone(messageId) {
+    fetch(`/api/chat/delete-for-everyone/${messageId}`, { method: "DELETE" })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                socket.emit("deleteMessage", { messageId });
+                let messageElement = document.getElementById(`message-${messageId}`);
+                if (messageElement) {
+                    messageElement.remove(); // Hapus dari DOM
+                }
+            }
+        });
+}
+
+
+
+async function deleteChat(receiver) {
+    if (!confirm(`Are you sure you want to delete chat with ${receiver}?`)) return;
+
+    try {
+        const res = await fetch(`/api/chat/delete/${currentUser}/${receiver}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" }
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            alert("Chat deleted successfully.");
+            document.getElementById("chat-box").innerHTML = ""; // Kosongkan chat
+        } else {
+            alert("Failed to delete chat.");
+        }
+    } catch (error) {
+        console.error("Error deleting chat:", error);
+        alert("Error deleting chat.");
+    }
+}
+
+
+// Panggil fetchUsers() saat halaman selesai dimuat
+document.addEventListener("DOMContentLoaded", async () => {
+    await checkAuth(); // Pastikan currentUser di-set sebelum fetchUsers
+    fetchUsers();
+});
+
+
+    </script>
+</head>
+<body class="bg-gray-100 flex">
+
+    <!-- Sidebar -->
+    <div id="sidebar" class="fixed inset-y-0 left-0 w-56 bg-blue-800 text-white transform -translate-x-full md:translate-x-0 transition-transform duration-300 md:relative">
+        <div class="p-4 flex items-center justify-between">
+            <h2 class="text-xl font-bold">Dashboard</h2>
+            <button class="md:hidden" onclick="toggleSidebar()">✖</button>
+        </div>
+        <nav class="mt-2">
+            <a href="#" onclick="showContent('users')" class="block py-2 px-4 hover:bg-blue-700">Users</a>
+            <a href="#" onclick="showContent('settings')" class="block py-2 px-4 hover:bg-blue-700">Settings</a>
+            <a href="#" onclick="showContent('logout')" class="block py-2 px-4 hover:bg-blue-700">Logout</a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 min-h-screen p-4 ml-0 w-full">
+        <header class="flex justify-between items-center bg-white p-4 shadow-md">
+            <button class="md:hidden" onclick="toggleSidebar()">☰</button>
+            <h1 class="text-2xl font-bold">Users Dashboard</h1>
+        </header>
+
+        <!-- Dynamic Content -->
+        <div id="main-content" class="mt-4 bg-white p-4 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold">Loading users...</h2>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", fetchUsers);
+    </script>
+
+</body>
+</html>
