@@ -16,55 +16,52 @@ app.use(express.json());
 
 const chatRoutes = require('./routes/chatRoutes');
 app.use('/api', chatRoutes);
-const server = http.createServer(app); 
-const io = new Server(server); 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false } // Diperlukan untuk Railway
-});
 
+const server = http.createServer(app);
+const io = new Server(server);
+const pool = new Pool({
+    user: 'postgres',
+    host: 'localhost',
+    database: 'chatdb',
+    password: 'Nurwanto18', // Ganti dengan password PostgreSQL
+    port: 5432,
+});
 
 
 // ====================
 // == MIDDLEWARES ==
 // ====================
 app.use(cors());
+// Middleware
 app.use(bodyParser.json());
-app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
-app.get("/socket.io/socket.io.js", (req, res) => {
-    res.sendFile(require.resolve("socket.io/client-dist/socket.io.js"));
-});
-
-
 app.use(session({
-    secret: 'yattajh',  // Gantilah dengan string acak yang lebih kuat
+    secret: 'yattajh',
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false } // Set `true` jika menggunakan HTTPS
+    cookie: { secure: false }
 }));
-
 // ====================
 // == DATABASE SETUP ==
 // ====================
 
-// Buat tabel `users` jika belum ada
+// Membuat tabel jika belum ada
 pool.query(`
     CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        username TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
+        username VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
         password TEXT NOT NULL
     );
-`);
 
-pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
         id SERIAL PRIMARY KEY,
-        sender TEXT NOT NULL,
-        receiver TEXT NOT NULL,
+        sender VARCHAR(255) NOT NULL,
+        receiver VARCHAR(255) NOT NULL,
         message TEXT NOT NULL,
-        timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_for_user TEXT DEFAULT NULL,
+        deleted_for TEXT
     );
 `);
 
@@ -75,48 +72,26 @@ console.log("Database & tabel siap");
 // =======================
 // == SETUP WEBSOCKET ==
 // =======================
+// WebSocket
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
     socket.on("sendMessage", async (data) => {
         const { sender, receiver, message } = data;
-        
         try {
-            const db = await openDb();
             const result = await pool.query(
                 "INSERT INTO messages (sender, receiver, message) VALUES ($1, $2, $3) RETURNING id",
                 [sender, receiver, message]
-            ).then(result => {
-                const messageId = result.rows[0].id;
-                const savedMessage = { id: messageId, sender, receiver, message };
-                socket.emit("messageSaved", savedMessage);
-                socket.to(receiver).emit("newMessage", savedMessage);
-            }).catch(err => console.error("Gagal menyimpan pesan:", err));
-            
-    
-            const messageId = result.lastID; // Ambil ID dari pesan yang baru saja disimpan
-    
-            const savedMessage = {
-                id: messageId,
-                sender,
-                receiver,
-                message
-            };
-    
-            // Kirim kembali ke pengirim agar tampilan diperbarui dengan ID
+            );
+            const messageId = result.rows[0].id;
+            const savedMessage = { id: messageId, sender, receiver, message };
             socket.emit("messageSaved", savedMessage);
-    
-            // Kirim ke penerima agar pesan muncul otomatis
             socket.to(receiver).emit("newMessage", savedMessage);
-    
         } catch (error) {
             console.error("Gagal menyimpan pesan:", error);
         }
     });
-    
-    socket.on("deleteMessage", (data) => {
-        io.emit("deleteMessage", { messageId: data.messageId });
-    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });
@@ -126,17 +101,16 @@ io.on('connection', (socket) => {
 app.put('/api/chat/delete-for-me/:messageId/:userId', (req, res) => {
     const { messageId, userId } = req.params;
 
-    db.get("SELECT deletedFor FROM messages WHERE id = ?", [messageId], (err, row) => {
-        if (err) return res.status(500).json({ success: false, message: "Error fetching message." });
-
-        let deletedFor = row.deletedFor ? JSON.parse(row.deletedFor) : [];
+    pool.query("SELECT deleted_for FROM messages WHERE id = $1", [messageId])
+    .then(result => {
+        let deletedFor = result.rows[0]?.deleted_for ? JSON.parse(result.rows[0].deleted_for) : [];
         if (!deletedFor.includes(userId)) deletedFor.push(userId);
 
-        db.run("UPDATE messages SET deletedFor = ? WHERE id = ?", [JSON.stringify(deletedFor), messageId], (err) => {
-            if (err) return res.status(500).json({ success: false, message: "Error deleting message for user." });
-            res.json({ success: true });
-        });
-    });
+        return pool.query("UPDATE messages SET deleted_for = $1 WHERE id = $2", [JSON.stringify(deletedFor), messageId]);
+    })
+    .then(() => res.json({ success: true }))
+    .catch(err => res.status(500).json({ success: false, message: "Error deleting message for user." }));
+
 });
 
 
@@ -144,10 +118,10 @@ app.put('/api/chat/delete-for-me/:messageId/:userId', (req, res) => {
 app.delete('/api/chat/delete-for-everyone/:messageId', (req, res) => {
     const { messageId } = req.params;
 
-    db.run("DELETE FROM messages WHERE id = ?", [messageId], (err) => {
-        if (err) return res.status(500).json({ success: false, message: "Error deleting message." });
-        res.json({ success: true });
-    });
+    pool.query("DELETE FROM messages WHERE id = $1", [messageId])
+    .then(() => res.json({ success: true }))
+    .catch(err => res.status(500).json({ success: false, message: "Error deleting message." }));
+
 });
 
 
@@ -174,6 +148,7 @@ app.post('/register', (req, res) => {
     
 });
 
+// Login User
 // **Login User**
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
@@ -217,12 +192,10 @@ app.post('/logout', (req, res) => {
 
 // **Ambil Semua Pengguna**
 app.get('/api/users', (req, res) => {
-    db.all(`SELECT id, username FROM users`, [], (err, rows) => {
-        if (err) {
-            return res.status(500).json({ message: "Gagal mengambil data pengguna." });
-        }
-        res.json(rows);
-    });
+    pool.query("SELECT id, username FROM users")
+    .then(result => res.json(result.rows))
+    .catch(err => res.status(500).json({ message: "Gagal mengambil data pengguna." }));
+
 });
 
 // ====================
