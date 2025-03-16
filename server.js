@@ -1,5 +1,4 @@
 const express = require('express');
-const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -10,6 +9,11 @@ const { Server } = require('socket.io');
 
 const app = express();
 const port = 3000;
+const { Pool } = require('pg');
+
+pool.connect()
+    .then(() => console.log("✅ Database connected!"))
+    .catch(err => console.error("❌ Database connection error:", err));
 
 app.use(cors());
 app.use(express.json());
