@@ -11,13 +11,23 @@ const { Pool } = require('pg');
 const app = express();
 const port = 3000;
 
-// **📌 Pastikan deklarasi `pool` dilakukan sebelum `pool.connect()`**
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgres://user:Nurwanto18@couple-production.up.railway.app:5432/chatdb',
-    ssl: { rejectUnauthorized: false }, 
-    idleTimeoutMillis: 30000,  // Timeout koneksi yang tidak digunakan
-    connectionTimeoutMillis: 20000, // Timeout saat mencoba koneksi
+  connectionString: process.env.DATABASE_URL,
+  ssl: { require: true, rejectUnauthorized: false },
 });
+
+// Kirim ping setiap 5 menit agar database tidak tidur
+setInterval(async () => {
+  try {
+    const client = await pool.connect();
+    await client.query("SELECT 1");
+    client.release();
+    console.log("Ping database: OK");
+  } catch (error) {
+    console.error("Ping database gagal:", error);
+  }
+}, 300000); // 300000 ms = 5 menit
+
 
 
 // **📌 Pastikan koneksi ke database**
