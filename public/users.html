@@ -75,7 +75,8 @@
 
 
 
-        function startChat(username) {
+ // Fungsi untuk mulai chat
+function startChat(username) {
     if (!currentUser || currentUser === username) {
         console.error("❌ currentUser tidak valid untuk chat!", { currentUser, username });
         alert("Anda tidak bisa mengirim pesan ke diri sendiri atau user tidak valid.");
@@ -101,26 +102,13 @@
     loadMessages(currentUser, username);
 }
 
+// ** Tambahkan event listener agar penerima menerima pesan otomatis **
+socket.on("newMessage", (msg) => {
+    appendMessage(msg, false); // false = bukan pesan pengirim
+});
 
-
-        socket.on("messageSaved", (msg) => {
-            let messageDiv = document.getElementById(`temp-${msg.sender}`);
-            if (messageDiv) {
-                messageDiv.id = `message-${msg.id}`; // Update ID agar bisa dihapus
-                messageDiv.innerHTML = `
-            ${msg.message} 
-            <button onclick="deleteMessageForMe(${msg.id})" class="text-xs text-gray-500 ml-2">🗑️</button>
-            <button onclick="deleteMessageForEveryone(${msg.id})" class="text-xs text-red-500 ml-2">🚮</button>
-        `;
-            }
-        });
-
-        // Tambahkan event listener agar penerima menerima pesan otomatis
-        socket.on("newMessage", (msg) => {
-            appendMessage(msg, false); // false = bukan pesan pengirim
-        });
-
-        function sendMessage(receiver) {
+// Fungsi untuk mengirim pesan
+function sendMessage(receiver) {
     let input = document.getElementById("chat-input");
     let chatBox = document.getElementById("chat-box");
 
@@ -134,12 +122,12 @@
         let messageText = input.value;
         input.value = "";
 
+        // **Tampilkan langsung pesan sebelum server merespons**
         let message = document.createElement("div");
-        message.id = `temp-${currentUser}`;
         message.classList.add("bg-blue-500", "text-white", "p-2", "rounded-md", "my-1", "w-max", "ml-auto");
         message.textContent = messageText;
         chatBox.appendChild(message);
-        chatBox.scrollTop = chatBox.scrollHeight;
+        chatBox.scrollTop = chatBox.scrollHeight; // Scroll ke bawah otomatis
 
         // Kirim ke server melalui WebSocket
         socket.emit("sendMessage", {
@@ -148,6 +136,26 @@
             message: messageText
         });
     }
+}
+
+// **Tambahkan fungsi untuk menampilkan pesan yang diterima tanpa refresh**
+function appendMessage(msg, isSender) {
+    let chatBox = document.getElementById("chat-box");
+
+    let message = document.createElement("div");
+    message.classList.add(
+        isSender ? "bg-blue-500" : "bg-gray-300",
+        isSender ? "text-white" : "text-black",
+        "p-2", "rounded-md", "my-1", "w-max", "relative"
+    );
+
+    if (isSender) {
+        message.classList.add("ml-auto");
+    }
+
+    message.textContent = msg.message;
+    chatBox.appendChild(message);
+    chatBox.scrollTop = chatBox.scrollHeight; // **Scroll otomatis ke pesan terbaru**
 }
 
 
