@@ -6,11 +6,18 @@ const path = require('path');
 const session = require('express-session');
 const http = require('http'); 
 const { Server } = require('socket.io'); 
+const { Pool } = require('pg');
 
 const app = express();
 const port = 3000;
-const { Pool } = require('pg');
 
+// **📌 Pastikan deklarasi `pool` dilakukan sebelum `pool.connect()`**
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgres://user:Nurwanto18@couple-production.up.railway.app:5432/chatdb',
+    ssl: { rejectUnauthorized: false } // **📌 Diperlukan jika PostgreSQL di Railway**
+});
+
+// **📌 Pastikan koneksi ke database**
 pool.connect()
     .then(() => console.log("✅ Database connected!"))
     .catch(err => console.error("❌ Database connection error:", err));
@@ -23,20 +30,35 @@ app.use('/api', chatRoutes);
 
 const server = http.createServer(app);
 const io = new Server(server);
-const pool = new Pool({
-    user: 'postgres',
-    host: 'couple-production.up.railway.app',
-    database: 'chatdb',
-    password: 'Nurwanto18', // Ganti dengan password PostgreSQL
-    port: 5432,
-});
 
+// **📌 Pastikan tabel dibuat hanya sekali**
+(async () => {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(255) NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password TEXT NOT NULL
+            );
 
-// ====================
-// == MIDDLEWARES ==
-// ====================
-app.use(cors());
-// Middleware
+            CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                sender VARCHAR(255) NOT NULL,
+                receiver VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_for_user TEXT DEFAULT NULL,
+                deleted_for TEXT
+            );
+        `);
+        console.log("✅ Database PostgreSQL siap!");
+    } catch (error) {
+        console.error("❌ Gagal membuat tabel:", error);
+    }
+})();
+
+// Middleware lainnya
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use(session({
@@ -45,29 +67,6 @@ app.use(session({
     saveUninitialized: true,
     cookie: { secure: false }
 }));
-// ====================
-// == DATABASE SETUP ==
-// ====================
-
-// Membuat tabel jika belum ada
-pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(255) NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS messages (
-        id SERIAL PRIMARY KEY,
-        sender VARCHAR(255) NOT NULL,
-        receiver VARCHAR(255) NOT NULL,
-        message TEXT NOT NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        deleted_for_user TEXT DEFAULT NULL,
-        deleted_for TEXT
-    );
-`);
 
 console.log("Database PostgreSQL siap!");
 
