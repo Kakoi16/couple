@@ -159,8 +159,10 @@ app.post('/register', (req, res) => {
     ).then(result => {
         res.json({ message: "Registrasi berhasil!", userId: result.rows[0].id });
     }).catch(err => {
-        res.status(400).json({ message: "User sudah ada atau terjadi kesalahan." });
+        console.error("Kesalahan server:", err);
+        res.status(500).json({ success: false, message: "Kesalahan server." });
     });
+    
     
 });
 
@@ -232,8 +234,13 @@ app.get("/registered", (req, res) => {
 });
 
 app.get("/users", (req, res) => {
+    console.log("Session di halaman users:", req.session.user);
+    if (!req.session.user) {
+        return res.status(401).json({ success: false, message: "Silakan login terlebih dahulu." });
+    }
     res.sendFile(path.join(__dirname, "public", "users.html"));
 });
+
 console.log("DATABASE_URL:", process.env.DATABASE_URL);
 
 // ==================
