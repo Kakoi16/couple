@@ -14,8 +14,11 @@ const port = 3000;
 // **📌 Pastikan deklarasi `pool` dilakukan sebelum `pool.connect()`**
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgres://user:Nurwanto18@couple-production.up.railway.app:5432/chatdb',
-    ssl: { rejectUnauthorized: false } // **📌 Diperlukan jika PostgreSQL di Railway**
+    ssl: { rejectUnauthorized: false }, 
+    idleTimeoutMillis: 30000,  // Timeout koneksi yang tidak digunakan
+    connectionTimeoutMillis: 20000, // Timeout saat mencoba koneksi
 });
+
 
 // **📌 Pastikan koneksi ke database**
 pool.connect()
