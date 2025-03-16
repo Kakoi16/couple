@@ -26,7 +26,7 @@ setInterval(async () => {
   } catch (error) {
     console.error("Ping database gagal:", error);
   }
-}, 300000); // 300000 ms = 5 menit
+}, 100000); // 300000 ms = 5 menit
 
 
 
