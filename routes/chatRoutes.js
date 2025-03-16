@@ -2,13 +2,9 @@ const express = require('express');
 const { Pool } = require('pg');
 
 const pool = new Pool({
-    user: 'kakoi',
-    host: 'couple-production.up.railway.app',
-    database: 'chatdb',
-    password: 'Nurwanto18', // Sesuaikan dengan PostgreSQL
-    port: 5432,
-});
-
+    connectionString: process.env.DATABASE_URL,
+    ssl: { require: true, rejectUnauthorized: false },
+  });
 const router = express.Router();
 
 // **Endpoint untuk menyimpan pesan**
