@@ -1,9 +1,9 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
+const db = new Database('./database.db');
+
 const router = express.Router();
 
-// Gunakan database yang sama
-const db = new sqlite3.Database('./database.db');
 
 // **Endpoint untuk menyimpan pesan**
 router.post('/send', (req, res) => {
