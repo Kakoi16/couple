@@ -1,5 +1,5 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -19,7 +19,8 @@ const chatRoutes = require('./routes/chatRoutes');
 app.use('/api', chatRoutes);
 const server = http.createServer(app); // Buat server HTTP
 const io = new Server(server); // Integrasikan dengan socket.io
-const db = new sqlite3.Database('./database.db'); // Gunakan satu database untuk users & chat
+const db = new Database('./database.db');
+
 
 // ====================
 // == MIDDLEWARES ==
