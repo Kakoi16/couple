@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,73 +8,80 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script>
-let currentUser = null;
+        let currentUser = null;
 
-async function checkAuth() {
-    try {
-        const res = await fetch('/api/auth/check');
-        const data = await res.json();
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/auth/check');
+                const data = await res.json();
 
-        if (!data.authenticated) {
-            window.location.href = "/register.html"; // Redirect ke register jika belum login
-        } else {
-            currentUser = data.user.username; // Simpan username saat ini
-            console.log("Logged in as:", currentUser);
+                if (!data.authenticated) {
+                    window.location.href = "/register.html"; // Redirect ke register jika belum login
+                } else {
+                    currentUser = data.user.username; // Simpan username saat ini
+                    console.log("Logged in as:", currentUser);
+                }
+            } catch (error) {
+                console.error("Error checking authentication:", error);
+                window.location.href = "/register.html"; // Redirect jika ada kesalahan
+            }
         }
-    } catch (error) {
-        console.error("Error checking authentication:", error);
-        window.location.href = "/register.html"; // Redirect jika ada kesalahan
-    }
-}
 
-document.addEventListener("DOMContentLoaded", checkAuth);
+        document.addEventListener("DOMContentLoaded", checkAuth);
 
 
-function toggleSidebar() {
-    document.getElementById("sidebar").classList.toggle("-translate-x-full");
-}
+        function toggleSidebar() {
+            document.getElementById("sidebar").classList.toggle("-translate-x-full");
+        }
 
-function showContent(page) {
-    let content = document.getElementById("main-content");
+        function showContent(page) {
+            let content = document.getElementById("main-content");
 
-    if (page === "users") {
-        fetchUsers(); // Panggil fetchUsers() yang sudah didefinisikan di bawah
-    } else {
-        content.innerHTML = `
+            if (page === "users") {
+                fetchUsers(); // Panggil fetchUsers() yang sudah didefinisikan di bawah
+            } else {
+                content.innerHTML = `
             <h2 class="text-xl font-semibold">${page.charAt(0).toUpperCase() + page.slice(1)}</h2>
             <p class="text-gray-600">${page === "settings" ? "Adjust settings here." : "You have logged out."}</p>
         `;
-    }
-}
-
-const socket = io(); // Inisialisasi koneksi WebSocket sekali saja di awal
-// **Tambahkan fungsi fetchUsers() di luar event listener**
-function fetchUsers() {
-    fetch('/api/users')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Gagal memuat: ${response.status}`);
             }
-            return response.json();
-        })
-        .then(users => {
-            let content = document.getElementById("main-content");
-            content.innerHTML = `<h2 class="text-xl font-semibold">Users</h2><ul id="user-list"></ul>`;
+        }
 
-            let ul = document.getElementById("user-list");
-            users.forEach(user => {
-                let li = document.createElement("li");
-                li.classList.add("p-2", "border-b", "cursor-pointer");
-                li.textContent = user.username;
-                li.onclick = () => startChat(user.username);
-                ul.appendChild(li);
-            });
-        })
-        .catch(error => console.error("Error:", error));
-}
+        const socket = io(); // Inisialisasi koneksi WebSocket sekali saja di awal
+        // **Tambahkan fungsi fetchUsers() di luar event listener**
+        async function fetchUsers() {
+            try {
+                let response = await fetch('/api/users');
+                if (!response.ok) {
+                    throw new Error(`Gagal memuat: ${response.status}`);
+                }
+
+                let users = await response.json();
+                let content = document.getElementById("main-content");
+                content.innerHTML = `<h2 class="text-xl font-semibold">Users</h2><ul id="user-list"></ul>`;
+
+                let ul = document.getElementById("user-list");
+                users.forEach(user => {
+                    let li = document.createElement("li");
+                    li.classList.add("p-2", "border-b", "cursor-pointer");
+                    li.textContent = user.username;
+                    li.onclick = () => startChat(user.username);
+                    ul.appendChild(li);
+                });
+            } catch (error) {
+                console.error("Error fetching users:", error.message);
+            }
+        }
 
 
-function startChat(username) {
+
+        function startChat(username) {
+    if (!currentUser || currentUser === username) {
+        console.error("❌ currentUser tidak valid untuk chat!", { currentUser, username });
+        alert("Anda tidak bisa mengirim pesan ke diri sendiri atau user tidak valid.");
+        return;
+    }
+
     let content = document.getElementById("main-content");
     content.innerHTML = `
         <h2 class="text-xl font-semibold flex justify-between">
@@ -89,52 +97,36 @@ function startChat(username) {
         </div>
     `;
 
-    loadMessages(currentUser, username); // Ambil pesan lama
-
-    // Hapus event listener sebelumnya agar tidak bertumpuk
-    socket.off(`receiveMessage:${currentUser}`);
-    socket.on("deleteMessage", (data) => {
-    let messageElement = document.getElementById(`message-${data.messageId}`);
-    if (messageElement) {
-        messageElement.remove(); // Hapus dari tampilan
-    }
-});
-
-    // Tambahkan event listener baru untuk pesan masuk
-    socket.on(`receiveMessage:${currentUser}`, (data) => {
-        let chatBox = document.getElementById("chat-box");
-        let message = document.createElement("div");
-        message.classList.add("bg-gray-300", "text-black", "p-2", "rounded-md", "my-1", "w-max");
-        message.textContent = `${data.sender}: ${data.message}`;
-        chatBox.appendChild(message);
-        chatBox.scrollTop = chatBox.scrollHeight;
-    });
+    console.log("🟢 Memulai chat antara:", currentUser, "dan", username);
+    loadMessages(currentUser, username);
 }
 
 
-socket.on("messageSaved", (msg) => {
-    let messageDiv = document.getElementById(`temp-${msg.sender}`);
-    if (messageDiv) {
-        messageDiv.id = `message-${msg.id}`; // Update ID agar bisa dihapus
-        messageDiv.innerHTML = `
+
+        socket.on("messageSaved", (msg) => {
+            let messageDiv = document.getElementById(`temp-${msg.sender}`);
+            if (messageDiv) {
+                messageDiv.id = `message-${msg.id}`; // Update ID agar bisa dihapus
+                messageDiv.innerHTML = `
             ${msg.message} 
             <button onclick="deleteMessageForMe(${msg.id})" class="text-xs text-gray-500 ml-2">🗑️</button>
             <button onclick="deleteMessageForEveryone(${msg.id})" class="text-xs text-red-500 ml-2">🚮</button>
         `;
-    }
-});
+            }
+        });
 
-// Tambahkan event listener agar penerima menerima pesan otomatis
-socket.on("newMessage", (msg) => {
-    appendMessage(msg, false); // false = bukan pesan pengirim
-});
+        // Tambahkan event listener agar penerima menerima pesan otomatis
+        socket.on("newMessage", (msg) => {
+            appendMessage(msg, false); // false = bukan pesan pengirim
+        });
 
-function sendMessage(receiver) {
+        function sendMessage(receiver) {
     let input = document.getElementById("chat-input");
     let chatBox = document.getElementById("chat-box");
 
-    if (!currentUser) {
-        console.error("User belum terautentikasi!");
+    if (!currentUser || currentUser === receiver) {
+        console.error("❌ User tidak valid atau mencoba mengirim ke diri sendiri!");
+        alert("Anda tidak bisa mengirim pesan ke diri sendiri.");
         return;
     }
 
@@ -160,15 +152,30 @@ function sendMessage(receiver) {
 
 
 
-async function loadMessages(sender, receiver) {
+        async function loadMessages(sender, receiver) {
     const chatBox = document.getElementById("chat-box");
     chatBox.innerHTML = ""; // Kosongkan sebelum memuat pesan baru
 
+    if (!sender || !receiver || sender === receiver) {
+        console.error("Sender atau Receiver tidak valid!", { sender, receiver });
+        chatBox.innerHTML = `<p class="text-red-500">Sender atau receiver tidak valid.</p>`;
+        return;
+    }
+
     try {
+        console.log(`Mengambil pesan antara ${sender} dan ${receiver}...`);
         const res = await fetch(`/api/chat/messages/${sender}/${receiver}`);
-        if (!res.ok) throw new Error("Gagal mengambil pesan.");
+
+        if (!res.ok) {
+    const errorText = await res.text();  // Supabase kadang mengembalikan error dalam format text
+    console.error("❌ Server response:", errorText);
+    throw new Error(`Gagal mengambil pesan: ${errorText}`);
+}
+
 
         const messages = await res.json();
+        console.log("Pesan diterima:", messages);
+
         if (!Array.isArray(messages)) throw new Error("Format data tidak valid.");
 
         messages.forEach(msg => {
@@ -207,36 +214,45 @@ async function loadMessages(sender, receiver) {
 
 
 
-function deleteMessageForMe(messageId) {
-    fetch(`/api/chat/delete-for-me/${messageId}/${currentUser}`, { method: "PUT" })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                let messageElement = document.getElementById(`message-${messageId}`);
-                if (messageElement) {
-                    messageElement.remove(); // Hapus dari DOM
-                }
-            }
-        });
-}
-
-function deleteMessageForEveryone(messageId) {
-    fetch(`/api/chat/delete-for-everyone/${messageId}`, { method: "DELETE" })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                socket.emit("deleteMessage", { messageId });
-                let messageElement = document.getElementById(`message-${messageId}`);
-                if (messageElement) {
-                    messageElement.remove(); // Hapus dari DOM
-                }
-            }
-        });
-}
 
 
+        function deleteMessageForMe(messageId) {
+            fetch(`/api/chat/delete-for-me/${messageId}/${currentUser}`, { method: "PUT" })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let messageElement = document.getElementById(`message-${messageId}`);
+                        if (messageElement) {
+                            messageElement.remove(); // Hapus dari DOM
+                        }
+                    }
+                });
+        }
 
-async function deleteChat(receiver) {
+        function deleteMessageForEveryone(messageId) {
+            fetch(`/api/chat/delete-for-everyone/${messageId}`, { method: "DELETE" })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        socket.emit("deleteMessage", { messageId });
+                        let messageElement = document.getElementById(`message-${messageId}`);
+                        if (messageElement) {
+                            messageElement.remove(); // Hapus dari DOM
+                        }
+                    }
+                });
+        }
+
+
+        async function deleteChat(receiver) {
+    if (!currentUser) {
+        console.error("Error: currentUser is not defined");
+        alert("Error: User is not identified.");
+        return;
+    }
+
+    console.log(`Menghapus chat antara ${currentUser} dan ${receiver}`);
+
     if (!confirm(`Are you sure you want to delete chat with ${receiver}?`)) return;
 
     try {
@@ -245,33 +261,54 @@ async function deleteChat(receiver) {
             headers: { "Content-Type": "application/json" }
         });
 
+        console.log("Response status:", res.status);
+
+        if (!res.ok) {
+            const errorText = await res.text(); // Tangani respons HTML
+            console.error("Server response:", errorText);
+            throw new Error(`Failed to delete chat: ${errorText}`);
+        }
+
         const data = await res.json();
         if (data.success) {
             alert("Chat deleted successfully.");
             document.getElementById("chat-box").innerHTML = ""; // Kosongkan chat
         } else {
-            alert("Failed to delete chat.");
+            alert("Failed to delete chat: " + data.message);
         }
     } catch (error) {
         console.error("Error deleting chat:", error);
-        alert("Error deleting chat.");
+        alert("Error deleting chat. Check console for details.");
     }
 }
 
 
-// Panggil fetchUsers() saat halaman selesai dimuat
-document.addEventListener("DOMContentLoaded", async () => {
-    await checkAuth(); // Pastikan currentUser di-set sebelum fetchUsers
-    fetchUsers();
-});
 
 
+        // Panggil fetchUsers() saat halaman selesai dimuat
+        document.addEventListener("DOMContentLoaded", async () => {
+            await checkAuth(); // Pastikan currentUser di-set sebelum fetchUsers
+            fetchUsers();
+        });
+
+        function logout() {
+        if (confirm("Are you sure you want to log out?")) {
+            // Hapus data user dari localStorage atau sessionStorage
+            localStorage.removeItem("currentUser");
+            sessionStorage.removeItem("currentUser");
+
+            // Redirect ke halaman login
+            window.location.href = "/";
+        }
+    }
     </script>
 </head>
+
 <body class="bg-gray-100 flex">
 
     <!-- Sidebar -->
-    <div id="sidebar" class="fixed inset-y-0 left-0 w-56 bg-blue-800 text-white transform -translate-x-full md:translate-x-0 transition-transform duration-300 md:relative">
+    <div id="sidebar"
+        class="fixed inset-y-0 left-0 w-56 bg-blue-800 text-white transform -translate-x-full md:translate-x-0 transition-transform duration-300 md:relative">
         <div class="p-4 flex items-center justify-between">
             <h2 class="text-xl font-bold">Dashboard</h2>
             <button class="md:hidden" onclick="toggleSidebar()">✖</button>
@@ -279,7 +316,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         <nav class="mt-2">
             <a href="#" onclick="showContent('users')" class="block py-2 px-4 hover:bg-blue-700">Users</a>
             <a href="#" onclick="showContent('settings')" class="block py-2 px-4 hover:bg-blue-700">Settings</a>
-            <a href="#" onclick="showContent('logout')" class="block py-2 px-4 hover:bg-blue-700">Logout</a>
+            <a href="#" onclick="logout()" class="block py-2 px-4 hover:bg-blue-700">Logout</a>
         </nav>
     </div>
 
@@ -301,4 +338,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     </script>
 
 </body>
+
 </html>

@@ -6,39 +6,17 @@ const path = require('path');
 const session = require('express-session');
 const http = require('http'); 
 const { Server } = require('socket.io'); 
-const { Pool } = require('pg');
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
+console.log("SUPABASE_URL:", process.env.SUPABASE_URL);
+console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY ? "✅ Terbaca" : "❌ Tidak Terbaca");
 
 const app = express();
 const port = 3000;
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { require: true, rejectUnauthorized: false },
-});
-
-// Kirim ping setiap 5 menit agar database tidak tidur
-setInterval(async () => {
-  try {
-    const client = await pool.connect();
-    await client.query("SELECT 1");
-    client.release();
-    console.log("Ping database: OK");
-  } catch (error) {
-    console.error("Ping database gagal:", error);
-  }
-}, 100000); // 300000 ms = 5 menit
-
-
-
-// **📌 Pastikan koneksi ke database**
-pool.connect()
-    .then(() => console.log("✅ Database connected!"))
-    .catch(err => console.error("❌ Database connection error:", err));
 
 app.use(cors());
 app.use(express.json());
@@ -48,33 +26,6 @@ app.use('/api', chatRoutes);
 
 const server = http.createServer(app);
 const io = new Server(server);
-
-// **📌 Pastikan tabel dibuat hanya sekali**
-(async () => {
-    try {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username VARCHAR(255) NOT NULL,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS messages (
-                id SERIAL PRIMARY KEY,
-                sender VARCHAR(255) NOT NULL,
-                receiver VARCHAR(255) NOT NULL,
-                message TEXT NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                deleted_for_user TEXT DEFAULT NULL,
-                deleted_for TEXT
-            );
-        `);
-        console.log("✅ Database PostgreSQL siap!");
-    } catch (error) {
-        console.error("❌ Gagal membuat tabel:", error);
-    }
-})();
 
 // Middleware lainnya
 app.use(bodyParser.json());
@@ -104,11 +55,13 @@ io.on('connection', (socket) => {
     socket.on("sendMessage", async (data) => {
         const { sender, receiver, message } = data;
         try {
-            const result = await pool.query(
-                "INSERT INTO messages (sender, receiver, message) VALUES ($1, $2, $3) RETURNING id",
-                [sender, receiver, message]
-            );
-            const messageId = result.rows[0].id;
+            const { data, error } = await supabase
+            .from('messages')
+            .insert([{ sender, receiver, message }])
+            .select();
+          
+          if (error) throw error;
+          const messageId = data[0].id;          
             const savedMessage = { id: messageId, sender, receiver, message };
             socket.emit("messageSaved", savedMessage);
             socket.to(receiver).emit("newMessage", savedMessage);
@@ -122,31 +75,55 @@ io.on('connection', (socket) => {
     });
 });
 
-// **Hapus Pesan untuk Saya Sendiri**
-app.put('/api/chat/delete-for-me/:messageId/:userId', (req, res) => {
+app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // Tambahkan async
     const { messageId, userId } = req.params;
 
-    pool.query("SELECT deleted_for FROM messages WHERE id = $1", [messageId])
-    .then(result => {
-        let deletedFor = result.rows[0]?.deleted_for ? JSON.parse(result.rows[0].deleted_for) : [];
+    try {
+        const { data: message, error } = await supabase
+            .from('messages')
+            .select('deleted_for')
+            .eq('id', messageId)
+            .single();
+
+        if (error || !message) {
+            return res.status(404).json({ success: false, message: "Pesan tidak ditemukan." });
+        }
+
+        let deletedFor = message.deleted_for ? JSON.parse(message.deleted_for) : [];
         if (!deletedFor.includes(userId)) deletedFor.push(userId);
 
-        return pool.query("UPDATE messages SET deleted_for = $1 WHERE id = $2", [JSON.stringify(deletedFor), messageId]);
-    })
-    .then(() => res.json({ success: true }))
-    .catch(err => res.status(500).json({ success: false, message: "Error deleting message for user." }));
+        const { error: updateError } = await supabase
+            .from('messages')
+            .update({ deleted_for: JSON.stringify(deletedFor) })
+            .eq('id', messageId);
 
+        if (updateError) throw updateError;
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Error deleting message for user:", err);
+        res.status(500).json({ success: false, message: "Kesalahan server." });
+    }
 });
 
 
-// **Hapus Pesan untuk Semua**
-app.delete('/api/chat/delete-for-everyone/:messageId', (req, res) => {
+
+app.delete('/api/chat/delete-for-everyone/:messageId', async (req, res) => { // Tambahkan async
     const { messageId } = req.params;
 
-    pool.query("DELETE FROM messages WHERE id = $1", [messageId])
-    .then(() => res.json({ success: true }))
-    .catch(err => res.status(500).json({ success: false, message: "Error deleting message." }));
+    try {
+        const { error } = await supabase
+            .from('messages')
+            .delete()
+            .eq('id', messageId);
 
+        if (error) throw error; // Jika ada error, lempar ke catch
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Error deleting message:", err);
+        res.status(500).json({ success: false, message: "Error deleting message." });
+    }
 });
 
 
@@ -154,29 +131,29 @@ app.delete('/api/chat/delete-for-everyone/:messageId', (req, res) => {
 // == AUTHENTICATION ==
 // ====================
 
-// **Registrasi User**
-app.post('/register', (req, res) => {
+app.post('/register', async (req, res) => {
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
         return res.status(400).json({ message: "Semua field harus diisi!" });
     }
 
-    const hashedPassword = bcrypt.hashSync(password, 10);
-    pool.query(
-        `INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id`,
-        [username, email, hashedPassword]
-    ).then(result => {
-        res.json({ message: "Registrasi berhasil!", userId: result.rows[0].id });
-    }).catch(err => {
+    try {
+        const hashedPassword = bcrypt.hashSync(password, 10);
+        const { data, error } = await supabase
+            .from('users')
+            .insert([{ username, email, password: hashedPassword }])
+            .select('id');
+
+        if (error) throw error;
+        res.json({ message: "Registrasi berhasil!", userId: data[0].id });
+    } catch (err) {
         console.error("Kesalahan server:", err);
         res.status(500).json({ success: false, message: "Kesalahan server." });
-    });
-    
-    
+    }
 });
 
 // Login User
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
     const { email, password } = req.body;
     console.log("Menerima permintaan login:", { email, password });
 
@@ -184,37 +161,40 @@ app.post('/login', (req, res) => {
         return res.status(400).json({ success: false, message: "Email dan password harus diisi." });
     }
 
-    pool.query(`SELECT * FROM users WHERE LOWER(email) = LOWER($1)`, [email])
-    .then(result => {
-        const user = result.rows[0];
+    try {
+        const { data: users, error } = await supabase
+            .from('users')
+            .select('*')
+            .ilike('email', email.toLowerCase());
 
-        if (!user) {
+        if (error) throw error;
+        if (!users || users.length === 0) {
             console.log("❌ User tidak ditemukan!");
             return res.status(404).json({ success: false, message: "User tidak ditemukan." });
         }
 
+        const user = users[0];
         const isValidPassword = bcrypt.compareSync(password, user.password);
-        if (isValidPassword) {
-            req.session.user = { id: user.id, username: user.username, email: user.email };
-            console.log("✅ Sesi login berhasil:", req.session);  // Debug sesi
-
-            // Simpan sesi sebelum mengirim respons
-            req.session.save(err => {
-                if (err) {
-                    console.error("❌ Gagal menyimpan sesi:", err);
-                    return res.status(500).json({ success: false, message: "Kesalahan server." });
-                }
-                res.json({ success: true, message: "Login berhasil!", username: user.username, redirect: "/users.html" });
-            });
-        } else {
+        if (!isValidPassword) {
             console.log("❌ Password salah.");
-            res.status(401).json({ success: false, message: "Password salah." });
+            return res.status(401).json({ success: false, message: "Password salah." });
         }
-    })
-    .catch(err => {
+
+        req.session.user = { id: user.id, username: user.username, email: user.email };
+        console.log("✅ Sesi login berhasil:", req.session);
+
+        req.session.save(err => {
+            if (err) {
+                console.error("❌ Gagal menyimpan sesi:", err);
+                return res.status(500).json({ success: false, message: "Kesalahan server." });
+            }
+            res.json({ success: true, message: "Login berhasil!", username: user.username, redirect: "/users.html" });
+        });
+
+    } catch (err) {
         console.error("❌ Kesalahan server saat login:", err);
         res.status(500).json({ success: false, message: "Kesalahan server." });
-    });
+    }
 });
 
 
@@ -238,17 +218,25 @@ app.post('/logout', (req, res) => {
 });
 
 // **Ambil Semua Pengguna**
-app.get('/api/users', (req, res) => {
-    pool.query("SELECT id, username FROM users")
-    .then(result => res.json(result.rows))
-    .catch(err => res.status(500).json({ message: "Gagal mengambil data pengguna." }));
+app.get('/api/users', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('users') // Sesuaikan dengan nama tabel di Supabase
+            .select('id, username');
 
+        if (error) throw error;
+
+        res.json(data);
+    } catch (err) {
+        console.error("Database Error:", err.message);
+        res.status(500).json({ message: "Gagal mengambil data pengguna." });
+    }
 });
 
 // ====================
 // == CHAT ENDPOINTS ==
 // ====================
-app.use('/api/chat', chatRoutes); // Menggunakan routes dari chatRoutes.js
+app.use("/api/chat", chatRoutes);
 
 // ==========================
 // == SERVE STATIC FILES ==

@@ -23,6 +23,28 @@ router.get('/messages/:sender/:receiver', (req, res) => {
         res.json(rows);
     });
 });
+router.delete("/delete/:sender/:receiver", async (req, res) => {  
+    const { sender, receiver } = req.params;
+    console.log(`DELETE request received for sender: ${sender}, receiver: ${receiver}`);
+
+    if (!sender || !receiver) {
+        return res.status(400).json({ success: false, message: "Sender atau receiver tidak valid." });
+    }
+
+    try {
+        const { error } = await supabase
+            .from("messages")
+            .delete()
+            .or(`and(sender.eq.${sender},receiver.eq.${receiver}),and(sender.eq.${receiver},receiver.eq.${sender})`);
+
+        if (error) throw error;
+
+        res.json({ success: true, message: "Chat berhasil dihapus." });
+    } catch (error) {
+        console.error("Error deleting chat:", error);
+        res.status(500).json({ success: false, message: "Gagal menghapus chat.", error: error.message });
+    }
+});
 
 // API untuk mengirim pesan
 router.post('/messages', (req, res) => {
