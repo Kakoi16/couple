@@ -73,7 +73,8 @@
             }
         }
         // Fungsi untuk mulai chat
-       // Fungsi untuk mulai chat
+        let lastMessageId = null; // Menyimpan ID pesan terakhir agar tidak duplikat
+
 function startChat(username) {
     if (!currentUser || currentUser === username) {
         console.error("❌ currentUser tidak valid untuk chat!", { currentUser, username });
@@ -99,19 +100,20 @@ function startChat(username) {
     console.log("🟢 Memulai chat antara:", currentUser, "dan", username);
     loadMessages(currentUser, username);
 
-    // **Pastikan event listener tidak dipasang berkali-kali**
-    if (!window.isSocketListenerAttached) {
-        socket.on("newMessage", (msg) => {
-            console.log("📩 Pesan diterima:", msg);
-            if (msg.sender === username || msg.receiver === username) {
-                appendMessage(msg, msg.sender === currentUser);
-            }
-        });
-        window.isSocketListenerAttached = true;
-    }
+    // **Tambahkan polling setiap 3 detik untuk cek pesan baru**
+    if (window.chatInterval) clearInterval(window.chatInterval);
+    window.chatInterval = setInterval(() => {
+        fetchNewMessages(currentUser, username);
+    }, 3000);
 }
 
-// Fungsi untuk mengirim pesan
+// **Event listener WebSocket**
+socket.on("newMessage", (msg) => {
+    console.log("📩 Pesan diterima:", msg);
+    appendMessage(msg, msg.sender === currentUser);
+});
+
+// **Fungsi mengirim pesan**
 function sendMessage(receiver) {
     let input = document.getElementById("chat-input");
     let chatBox = document.getElementById("chat-box");
@@ -126,10 +128,8 @@ function sendMessage(receiver) {
         let messageText = input.value;
         input.value = "";
 
-        // **Tampilkan langsung pesan di UI**
         appendMessage({ sender: currentUser, message: messageText }, true);
 
-        // Kirim ke server melalui WebSocket
         socket.emit("sendMessage", {
             sender: currentUser, 
             receiver, 
@@ -144,7 +144,10 @@ function appendMessage(msg, isSender) {
 
     if (!chatBox) return; // Jika chat belum dibuka, abaikan
 
+    if (document.getElementById(`message-${msg.id}`)) return; // Cegah duplikasi pesan
+
     let message = document.createElement("div");
+    message.id = `message-${msg.id}`;
     message.classList.add(
         isSender ? "bg-blue-500" : "bg-gray-300",
         isSender ? "text-white" : "text-black",
@@ -157,10 +160,10 @@ function appendMessage(msg, isSender) {
 
     message.textContent = msg.message;
     chatBox.appendChild(message);
-    chatBox.scrollTop = chatBox.scrollHeight; // **Scroll otomatis ke pesan terbaru**
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// **Fungsi untuk memuat pesan lama dari server**
+// **Fungsi memuat pesan lama**
 async function loadMessages(sender, receiver) {
     const chatBox = document.getElementById("chat-box");
     chatBox.innerHTML = ""; // Kosongkan sebelum memuat pesan baru
@@ -176,7 +179,7 @@ async function loadMessages(sender, receiver) {
         const res = await fetch(`/api/chat/messages/${sender}/${receiver}`);
 
         if (!res.ok) {
-            const errorText = await res.text();  // Supabase kadang mengembalikan error dalam format text
+            const errorText = await res.text();
             console.error("❌ Server response:", errorText);
             throw new Error(`Gagal mengambil pesan: ${errorText}`);
         }
@@ -186,17 +189,51 @@ async function loadMessages(sender, receiver) {
 
         if (!Array.isArray(messages)) throw new Error("Format data tidak valid.");
 
+        chatBox.innerHTML = ""; // Bersihkan pesan lama
+
         messages.forEach(msg => {
             appendMessage(msg, msg.sender === sender);
         });
 
-        chatBox.scrollTop = chatBox.scrollHeight; // Scroll ke bawah
+        // **Simpan ID pesan terakhir agar polling hanya mengambil pesan baru**
+        if (messages.length > 0) {
+            lastMessageId = messages[messages.length - 1].id;
+        }
+
+        chatBox.scrollTop = chatBox.scrollHeight;
     } catch (error) {
         console.error("Error loading messages:", error.message);
         chatBox.innerHTML = `<p class="text-red-500">${error.message}</p>`;
     }
 }
 
+// **Fungsi untuk mengambil pesan baru tanpa refresh**
+async function fetchNewMessages(sender, receiver) {
+    if (!lastMessageId) return; // Jika belum ada pesan, abaikan
+
+    try {
+        console.log(`🔄 Mengecek pesan baru sejak ID ${lastMessageId}...`);
+        const res = await fetch(`/api/chat/messages/${sender}/${receiver}?lastId=${lastMessageId}`);
+
+        if (!res.ok) {
+            console.error("❌ Gagal mengambil pesan baru");
+            return;
+        }
+
+        const messages = await res.json();
+        if (!Array.isArray(messages) || messages.length === 0) return;
+
+        console.log("📩 Pesan baru diterima:", messages);
+
+        messages.forEach(msg => {
+            appendMessage(msg, msg.sender === sender);
+        });
+
+        lastMessageId = messages[messages.length - 1].id; // Update lastMessageId
+    } catch (error) {
+        console.error("Error fetching new messages:", error);
+    }
+}
         function deleteMessageForMe(messageId) {
             fetch(`/api/chat/delete-for-me/${messageId}/${currentUser}`, { method: "PUT" })
                 .then(response => response.json())
