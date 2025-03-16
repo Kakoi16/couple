@@ -1,5 +1,5 @@
 const express = require('express');
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -18,7 +18,11 @@ const chatRoutes = require('./routes/chatRoutes');
 app.use('/api', chatRoutes);
 const server = http.createServer(app); 
 const io = new Server(server); 
-const db = new Database('./database.db');
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false } // Diperlukan untuk Railway
+});
+
 
 
 // ====================
@@ -45,21 +49,27 @@ app.use(session({
 // ====================
 
 // Buat tabel `users` jika belum ada
-db.run(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL
-)`);
+pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL
+    );
+`);
 
-// Buat tabel `messages` jika belum ada
-db.run(`CREATE TABLE IF NOT EXISTS messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sender TEXT NOT NULL,
-    receiver TEXT NOT NULL,
-    message TEXT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-)`);
+pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        sender TEXT NOT NULL,
+        receiver TEXT NOT NULL,
+        message TEXT NOT NULL,
+        timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+`);
+
+console.log("Database PostgreSQL siap!");
+
 
 console.log("Database & tabel siap");
 // =======================
@@ -73,10 +83,16 @@ io.on('connection', (socket) => {
         
         try {
             const db = await openDb();
-            const result = await db.run(
-                "INSERT INTO messages (sender, receiver, message) VALUES (?, ?, ?)", 
+            const result = await pool.query(
+                "INSERT INTO messages (sender, receiver, message) VALUES ($1, $2, $3) RETURNING id",
                 [sender, receiver, message]
-            );
+            ).then(result => {
+                const messageId = result.rows[0].id;
+                const savedMessage = { id: messageId, sender, receiver, message };
+                socket.emit("messageSaved", savedMessage);
+                socket.to(receiver).emit("newMessage", savedMessage);
+            }).catch(err => console.error("Gagal menyimpan pesan:", err));
+            
     
             const messageId = result.lastID; // Ambil ID dari pesan yang baru saja disimpan
     
@@ -147,15 +163,15 @@ app.post('/register', (req, res) => {
     }
 
     const hashedPassword = bcrypt.hashSync(password, 10);
-    db.run(`INSERT INTO users (username, email, password) VALUES (?, ?, ?)`,
-        [username, email, hashedPassword],
-        function (err) {
-            if (err) {
-                return res.status(400).json({ message: "User sudah ada atau terjadi kesalahan." });
-            }
-            res.json({ message: "Registrasi berhasil!", userId: this.lastID });
-        }
-    );
+    pool.query(
+        `INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id`,
+        [username, email, hashedPassword]
+    ).then(result => {
+        res.json({ message: "Registrasi berhasil!", userId: result.rows[0].id });
+    }).catch(err => {
+        res.status(400).json({ message: "User sudah ada atau terjadi kesalahan." });
+    });
+    
 });
 
 // **Login User**
@@ -165,8 +181,9 @@ app.post('/login', (req, res) => {
         return res.status(400).json({ success: false, message: "Email dan password harus diisi." });
     }
 
-    db.get(`SELECT * FROM users WHERE LOWER(email) = LOWER(?)`, [email], (err, user) => {
-        if (err) return res.status(500).json({ success: false, message: "Kesalahan server." });
+    pool.query(`SELECT * FROM users WHERE LOWER(email) = LOWER($1)`, [email])
+    .then(result => {
+        const user = result.rows[0];
         if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan." });
 
         const isValidPassword = bcrypt.compareSync(password, user.password);
@@ -176,7 +193,9 @@ app.post('/login', (req, res) => {
         } else {
             res.status(401).json({ success: false, message: "Password salah." });
         }
-    });
+    })
+    .catch(err => res.status(500).json({ success: false, message: "Kesalahan server." }));
+
 });
 
 // **Cek Autentikasi**

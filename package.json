@@ -1,12 +1,12 @@
 {
   "dependencies": {
     "bcryptjs": "^3.0.2",
-    "better-sqlite3": "^11.9.0",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
     "pg": "^8.14.0",
+    "pg-hstore": "^2.3.4",
     "socket.io": "^4.8.1"
   },
   "name": "couple",
