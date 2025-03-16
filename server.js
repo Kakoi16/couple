@@ -5,8 +5,8 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const session = require('express-session');
-const http = require('http'); // Tambahkan ini
-const { Server } = require('socket.io'); // Tambahkan ini
+const http = require('http'); 
+const { Server } = require('socket.io'); 
 
 const app = express();
 const port = 3000;
@@ -14,11 +14,10 @@ const port = 3000;
 app.use(cors());
 app.use(express.json());
 
-// ✅ Import router setelah app dideklarasikan
 const chatRoutes = require('./routes/chatRoutes');
 app.use('/api', chatRoutes);
-const server = http.createServer(app); // Buat server HTTP
-const io = new Server(server); // Integrasikan dengan socket.io
+const server = http.createServer(app); 
+const io = new Server(server); 
 const db = new Database('./database.db');
 
 
