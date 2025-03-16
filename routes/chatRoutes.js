@@ -2,7 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 
 const pool = new Pool({
-    user: 'user',
+    user: 'kakoi',
     host: 'couple-production.up.railway.app',
     database: 'chatdb',
     password: 'Nurwanto18', // Sesuaikan dengan PostgreSQL

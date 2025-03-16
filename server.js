@@ -75,10 +75,14 @@ const io = new Server(server);
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use(session({
-    secret: 'yattajh',
+    secret: 'yattajh',  // Gunakan string yang lebih kompleks untuk keamanan
     resave: false,
-    saveUninitialized: true,
-    cookie: { secure: false }
+    saveUninitialized: false,  // Ubah ke `false` agar sesi tidak dibuat tanpa autentikasi
+    cookie: { 
+        secure: false, // Gunakan `true` jika server sudah pakai HTTPS
+        httpOnly: true,  // Mencegah akses JS ke cookie
+        maxAge: 24 * 60 * 60 * 1000  // Sesi berlaku 1 hari
+    }
 }));
 
 console.log("Database PostgreSQL siap!");
@@ -167,9 +171,10 @@ app.post('/register', (req, res) => {
 });
 
 // Login User
-// **Login User**
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
+    console.log("Menerima permintaan login:", { email, password });
+
     if (!email || !password) {
         return res.status(400).json({ success: false, message: "Email dan password harus diisi." });
     }
@@ -177,19 +182,38 @@ app.post('/login', (req, res) => {
     pool.query(`SELECT * FROM users WHERE LOWER(email) = LOWER($1)`, [email])
     .then(result => {
         const user = result.rows[0];
-        if (!user) return res.status(404).json({ success: false, message: "User tidak ditemukan." });
+
+        if (!user) {
+            console.log("❌ User tidak ditemukan!");
+            return res.status(404).json({ success: false, message: "User tidak ditemukan." });
+        }
 
         const isValidPassword = bcrypt.compareSync(password, user.password);
         if (isValidPassword) {
             req.session.user = { id: user.id, username: user.username, email: user.email };
-            res.json({ success: true, message: "Login berhasil!", username: user.username, redirect: "/users" });
+            console.log("✅ Sesi login berhasil:", req.session);  // Debug sesi
+
+            // Simpan sesi sebelum mengirim respons
+            req.session.save(err => {
+                if (err) {
+                    console.error("❌ Gagal menyimpan sesi:", err);
+                    return res.status(500).json({ success: false, message: "Kesalahan server." });
+                }
+                res.json({ success: true, message: "Login berhasil!", username: user.username, redirect: "/users.html" });
+            });
         } else {
+            console.log("❌ Password salah.");
             res.status(401).json({ success: false, message: "Password salah." });
         }
     })
-    .catch(err => res.status(500).json({ success: false, message: "Kesalahan server." }));
-
+    .catch(err => {
+        console.error("❌ Kesalahan server saat login:", err);
+        res.status(500).json({ success: false, message: "Kesalahan server." });
+    });
 });
+
+
+
 
 // **Cek Autentikasi**
 app.get('/api/auth/check', (req, res) => {
