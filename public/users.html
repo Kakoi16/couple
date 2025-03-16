@@ -72,10 +72,8 @@
                 console.error("Error fetching users:", error.message);
             }
         }
-
-
-
- // Fungsi untuk mulai chat
+        // Fungsi untuk mulai chat
+       // Fungsi untuk mulai chat
 function startChat(username) {
     if (!currentUser || currentUser === username) {
         console.error("❌ currentUser tidak valid untuk chat!", { currentUser, username });
@@ -100,12 +98,18 @@ function startChat(username) {
 
     console.log("🟢 Memulai chat antara:", currentUser, "dan", username);
     loadMessages(currentUser, username);
-}
 
-// ** Tambahkan event listener agar penerima menerima pesan otomatis **
-socket.on("newMessage", (msg) => {
-    appendMessage(msg, false); // false = bukan pesan pengirim
-});
+    // **Pastikan event listener tidak dipasang berkali-kali**
+    if (!window.isSocketListenerAttached) {
+        socket.on("newMessage", (msg) => {
+            console.log("📩 Pesan diterima:", msg);
+            if (msg.sender === username || msg.receiver === username) {
+                appendMessage(msg, msg.sender === currentUser);
+            }
+        });
+        window.isSocketListenerAttached = true;
+    }
+}
 
 // Fungsi untuk mengirim pesan
 function sendMessage(receiver) {
@@ -122,12 +126,8 @@ function sendMessage(receiver) {
         let messageText = input.value;
         input.value = "";
 
-        // **Tampilkan langsung pesan sebelum server merespons**
-        let message = document.createElement("div");
-        message.classList.add("bg-blue-500", "text-white", "p-2", "rounded-md", "my-1", "w-max", "ml-auto");
-        message.textContent = messageText;
-        chatBox.appendChild(message);
-        chatBox.scrollTop = chatBox.scrollHeight; // Scroll ke bawah otomatis
+        // **Tampilkan langsung pesan di UI**
+        appendMessage({ sender: currentUser, message: messageText }, true);
 
         // Kirim ke server melalui WebSocket
         socket.emit("sendMessage", {
@@ -138,9 +138,11 @@ function sendMessage(receiver) {
     }
 }
 
-// **Tambahkan fungsi untuk menampilkan pesan yang diterima tanpa refresh**
+// **Fungsi untuk menampilkan pesan di UI tanpa refresh**
 function appendMessage(msg, isSender) {
     let chatBox = document.getElementById("chat-box");
+
+    if (!chatBox) return; // Jika chat belum dibuka, abaikan
 
     let message = document.createElement("div");
     message.classList.add(
@@ -158,9 +160,8 @@ function appendMessage(msg, isSender) {
     chatBox.scrollTop = chatBox.scrollHeight; // **Scroll otomatis ke pesan terbaru**
 }
 
-
-
-        async function loadMessages(sender, receiver) {
+// **Fungsi untuk memuat pesan lama dari server**
+async function loadMessages(sender, receiver) {
     const chatBox = document.getElementById("chat-box");
     chatBox.innerHTML = ""; // Kosongkan sebelum memuat pesan baru
 
@@ -171,46 +172,22 @@ function appendMessage(msg, isSender) {
     }
 
     try {
-        console.log(`Mengambil pesan antara ${sender} dan ${receiver}...`);
+        console.log(`📥 Mengambil pesan antara ${sender} dan ${receiver}...`);
         const res = await fetch(`/api/chat/messages/${sender}/${receiver}`);
 
         if (!res.ok) {
-    const errorText = await res.text();  // Supabase kadang mengembalikan error dalam format text
-    console.error("❌ Server response:", errorText);
-    throw new Error(`Gagal mengambil pesan: ${errorText}`);
-}
-
+            const errorText = await res.text();  // Supabase kadang mengembalikan error dalam format text
+            console.error("❌ Server response:", errorText);
+            throw new Error(`Gagal mengambil pesan: ${errorText}`);
+        }
 
         const messages = await res.json();
-        console.log("Pesan diterima:", messages);
+        console.log("📨 Pesan diterima:", messages);
 
         if (!Array.isArray(messages)) throw new Error("Format data tidak valid.");
 
         messages.forEach(msg => {
-            let message = document.createElement("div");
-            message.id = `message-${msg.id}`;
-            const isCurrentUser = msg.sender === sender;
-            message.classList.add(
-                isCurrentUser ? "bg-blue-500" : "bg-gray-300",
-                isCurrentUser ? "text-white" : "text-black",
-                "p-2", "rounded-md", "my-1", "w-max", "relative"
-            );
-
-            if (isCurrentUser) {
-                message.classList.add("ml-auto");
-            }
-
-            // **Tambahkan tombol hapus hanya jika pesan berasal dari database**
-            let deleteButtons = "";
-            if (msg.id) {
-                deleteButtons = `
-                    <button onclick="deleteMessageForMe(${msg.id})" class="text-xs text-gray-500 ml-2">🗑️</button>
-                    ${isCurrentUser ? `<button onclick="deleteMessageForEveryone(${msg.id})" class="text-xs text-red-500 ml-2">🚮</button>` : ""}
-                `;
-            }
-
-            message.innerHTML = `${msg.message} ${deleteButtons}`;
-            chatBox.appendChild(message);
+            appendMessage(msg, msg.sender === sender);
         });
 
         chatBox.scrollTop = chatBox.scrollHeight; // Scroll ke bawah
@@ -219,10 +196,6 @@ function appendMessage(msg, isSender) {
         chatBox.innerHTML = `<p class="text-red-500">${error.message}</p>`;
     }
 }
-
-
-
-
 
         function deleteMessageForMe(messageId) {
             fetch(`/api/chat/delete-for-me/${messageId}/${currentUser}`, { method: "PUT" })
@@ -253,42 +226,42 @@ function appendMessage(msg, isSender) {
 
 
         async function deleteChat(receiver) {
-    if (!currentUser) {
-        console.error("Error: currentUser is not defined");
-        alert("Error: User is not identified.");
-        return;
-    }
+            if (!currentUser) {
+                console.error("Error: currentUser is not defined");
+                alert("Error: User is not identified.");
+                return;
+            }
 
-    console.log(`Menghapus chat antara ${currentUser} dan ${receiver}`);
+            console.log(`Menghapus chat antara ${currentUser} dan ${receiver}`);
 
-    if (!confirm(`Are you sure you want to delete chat with ${receiver}?`)) return;
+            if (!confirm(`Are you sure you want to delete chat with ${receiver}?`)) return;
 
-    try {
-        const res = await fetch(`/api/chat/delete/${currentUser}/${receiver}`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" }
-        });
+            try {
+                const res = await fetch(`/api/chat/delete/${currentUser}/${receiver}`, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" }
+                });
 
-        console.log("Response status:", res.status);
+                console.log("Response status:", res.status);
 
-        if (!res.ok) {
-            const errorText = await res.text(); // Tangani respons HTML
-            console.error("Server response:", errorText);
-            throw new Error(`Failed to delete chat: ${errorText}`);
+                if (!res.ok) {
+                    const errorText = await res.text(); // Tangani respons HTML
+                    console.error("Server response:", errorText);
+                    throw new Error(`Failed to delete chat: ${errorText}`);
+                }
+
+                const data = await res.json();
+                if (data.success) {
+                    alert("Chat deleted successfully.");
+                    document.getElementById("chat-box").innerHTML = ""; // Kosongkan chat
+                } else {
+                    alert("Failed to delete chat: " + data.message);
+                }
+            } catch (error) {
+                console.error("Error deleting chat:", error);
+                alert("Error deleting chat. Check console for details.");
+            }
         }
-
-        const data = await res.json();
-        if (data.success) {
-            alert("Chat deleted successfully.");
-            document.getElementById("chat-box").innerHTML = ""; // Kosongkan chat
-        } else {
-            alert("Failed to delete chat: " + data.message);
-        }
-    } catch (error) {
-        console.error("Error deleting chat:", error);
-        alert("Error deleting chat. Check console for details.");
-    }
-}
 
 
 
@@ -300,15 +273,15 @@ function appendMessage(msg, isSender) {
         });
 
         function logout() {
-        if (confirm("Are you sure you want to log out?")) {
-            // Hapus data user dari localStorage atau sessionStorage
-            localStorage.removeItem("currentUser");
-            sessionStorage.removeItem("currentUser");
+            if (confirm("Are you sure you want to log out?")) {
+                // Hapus data user dari localStorage atau sessionStorage
+                localStorage.removeItem("currentUser");
+                sessionStorage.removeItem("currentUser");
 
-            // Redirect ke halaman login
-            window.location.href = "/";
+                // Redirect ke halaman login
+                window.location.href = "/";
+            }
         }
-    }
     </script>
 </head>
 
