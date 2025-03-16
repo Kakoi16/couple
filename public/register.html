@@ -122,7 +122,7 @@
     try {
         console.log("Mengirim data:", { username, email, password }); // Debugging di console browser
 
-        const res = await fetch('http://localhost:3000/register', {
+        const res = await fetch('https://couple-production.up.railway.app/register', {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json'
