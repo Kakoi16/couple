@@ -21,7 +21,7 @@ const server = http.createServer(app);
 const io = new Server(server);
 const pool = new Pool({
     user: 'postgres',
-    host: 'localhost',
+    host: 'couple-production.up.railway.app',
     database: 'chatdb',
     password: 'Nurwanto18', // Ganti dengan password PostgreSQL
     port: 5432,
