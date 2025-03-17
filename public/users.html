@@ -292,32 +292,46 @@
                 console.error("Error fetching new messages:", error);
             }
         }
-        function deleteMessageForMe(messageId) {
-            fetch(`/api/chat/delete-for-me/${messageId}/${currentUser}`, { method: "PUT" })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        let messageElement = document.getElementById(`message-${messageId}`);
-                        if (messageElement) {
-                            messageElement.remove(); // Hapus dari DOM
-                        }
-                    }
-                });
-        }
+        // Fungsi untuk menghapus pesan hanya untuk diri sendiri
+async function deleteMessageForMe(messageId) {
+    try {
+        const response = await fetch(`/api/chat/delete-for-me/${messageId}`, { method: "DELETE" });
 
-        function deleteMessageForEveryone(messageId) {
-            fetch(`/api/chat/delete-for-everyone/${messageId}`, { method: "DELETE" })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        socket.emit("deleteMessage", { messageId });
-                        let messageElement = document.getElementById(`message-${messageId}`);
-                        if (messageElement) {
-                            messageElement.remove(); // Hapus dari DOM
-                        }
-                    }
-                });
+        if (response.ok) {
+            console.log(`✅ Pesan ${messageId} dihapus untuk saya.`);
+            document.getElementById(`message-${messageId}`)?.remove();
+        } else {
+            console.error("❌ Gagal menghapus pesan untuk saya:", await response.text());
         }
+    } catch (error) {
+        console.error("Error menghapus pesan untuk saya:", error);
+    }
+}
+
+       // Fungsi untuk menghapus pesan untuk semua orang
+async function deleteMessageForEveryone(messageId) {
+    try {
+        const response = await fetch(`/api/chat/delete-for-everyone/${messageId}`, { method: "DELETE" });
+
+        if (response.ok) {
+            console.log(`✅ Pesan ${messageId} dihapus untuk semua orang.`);
+            document.getElementById(`message-${messageId}`)?.remove();
+            
+            // Emit event ke WebSocket agar user lain menghapus pesan juga
+            socket.emit("deleteMessage", { messageId });
+        } else {
+            console.error("❌ Gagal menghapus pesan untuk semua orang:", await response.text());
+        }
+    } catch (error) {
+        console.error("Error menghapus pesan untuk semua orang:", error);
+    }
+}
+
+// Event listener WebSocket untuk menangani penghapusan pesan dari user lain
+socket.on("messageDeleted", ({ messageId }) => {
+    console.log(`🗑️ Pesan ${messageId} dihapus oleh pengirim`);
+    document.getElementById(`message-${messageId}`)?.remove();
+});
 
 
         async function deleteChat(receiver) {
