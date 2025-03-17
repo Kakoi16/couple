@@ -172,85 +172,88 @@
 
 
         function appendMessage(msg, isSender) {
-            let chatBox = document.getElementById("chat-box");
+    let chatBox = document.getElementById("chat-box");
 
-            if (!chatBox || !msg.id) {
-                console.error("Pesan tidak memiliki ID!", msg);
-                return;
-            }
+    if (!chatBox) {
+        console.error("❌ chat-box tidak ditemukan.");
+        return;
+    }
 
-            if (document.getElementById(`message-${msg.id}`)) return;
+    if (!msg || !msg.id || !msg.message) {
+        console.error("❌ Pesan tidak memiliki ID atau isi pesan tidak valid!", msg);
+        return;
+    }
 
-            let messageContainer = document.createElement("div");
-            messageContainer.id = `message-${msg.id}`;
-            messageContainer.classList.add(
-                "relative", "flex", isSender ? "justify-end" : "justify-start"
-            );
+    // **Cegah duplikasi pesan**
+    if (document.getElementById(`message-${msg.id}`)) return;
 
-            let messageBubble = document.createElement("div");
-            messageBubble.classList.add(
-                isSender ? "bg-blue-500" : "bg-gray-300",
-                isSender ? "text-white" : "text-black",
-                "p-2", "rounded-md", "my-1", "w-max", "relative"
-            );
+    let messageContainer = document.createElement("div");
+    messageContainer.id = `message-${msg.id}`;
+    messageContainer.classList.add("relative", "flex", isSender ? "justify-end" : "justify-start");
 
-            messageBubble.textContent = msg.message;
+    let messageBubble = document.createElement("div");
+    messageBubble.classList.add(
+        isSender ? "bg-blue-500" : "bg-gray-300",
+        isSender ? "text-white" : "text-black",
+        "p-2", "rounded-md", "my-1", "w-max", "relative"
+    );
+    messageBubble.textContent = msg.message;
 
-            // **Tambahkan dropdown untuk hapus pesan**
-            if (msg.id) {
-                let dropdownContainer = document.createElement("div");
-                dropdownContainer.classList.add("relative", "ml-2");
+    // **Tambahkan dropdown untuk hapus pesan**
+    let dropdownContainer = document.createElement("div");
+    dropdownContainer.classList.add("relative", "ml-2");
 
-                let dropdownButton = document.createElement("button");
-                dropdownButton.textContent = "⋮";
-                dropdownButton.classList.add("text-gray-600", "text-lg", "cursor-pointer", "hover:text-gray-900");
+    let dropdownButton = document.createElement("button");
+    dropdownButton.textContent = "⋮";
+    dropdownButton.classList.add("text-gray-600", "text-lg", "cursor-pointer", "hover:text-gray-900");
 
-                let dropdownMenu = document.createElement("div");
-                dropdownMenu.classList.add("absolute", "right-0", "bg-white", "shadow-md", "rounded-md", "hidden", "z-10");
+    let dropdownMenu = document.createElement("div");
+    dropdownMenu.classList.add("absolute", "right-0", "bg-white", "shadow-md", "rounded-md", "hidden", "z-10");
 
-                dropdownButton.onclick = function () {
-                    dropdownMenu.classList.toggle("hidden");
-                };
+    // **Pastikan hanya satu dropdown yang terbuka**
+    dropdownButton.onclick = function (event) {
+        event.stopPropagation();
+        document.querySelectorAll(".dropdown-menu").forEach(menu => {
+            if (menu !== dropdownMenu) menu.classList.add("hidden");
+        });
+        dropdownMenu.classList.toggle("hidden");
+    };
 
-                let deleteForMeOption = document.createElement("button");
-                deleteForMeOption.textContent = "Hapus untuk Saya";
-                deleteForMeOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
-                deleteForMeOption.onclick = function () {
-                    if (msg.id) {
-                        deleteMessageForMe(msg.id);
-                        dropdownMenu.classList.add("hidden");
-                    } else {
-                        console.error("ID pesan tidak ditemukan untuk hapus untuk saya!", msg);
-                    }
-                };
+    // **Tutup dropdown jika klik di luar**
+    document.addEventListener("click", function () {
+        dropdownMenu.classList.add("hidden");
+    });
 
-                let deleteForEveryoneOption = document.createElement("button");
-                deleteForEveryoneOption.textContent = "Hapus untuk Semua Orang";
-                deleteForEveryoneOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
-                deleteForEveryoneOption.onclick = function () {
-                    if (msg.id) {
-                        deleteMessageForEveryone(msg.id);
-                        dropdownMenu.classList.add("hidden");
-                    } else {
-                        console.error("ID pesan tidak ditemukan untuk hapus untuk semua orang!", msg);
-                    }
-                };
+    let deleteForMeOption = document.createElement("button");
+    deleteForMeOption.textContent = "Hapus untuk Saya";
+    deleteForMeOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
+    deleteForMeOption.onclick = function () {
+        deleteMessageForMe(msg.id);
+        dropdownMenu.classList.add("hidden");
+    };
 
-                dropdownMenu.appendChild(deleteForMeOption);
-                if (isSender) {
-                    dropdownMenu.appendChild(deleteForEveryoneOption);
-                }
+    let deleteForEveryoneOption = document.createElement("button");
+    deleteForEveryoneOption.textContent = "Hapus untuk Semua Orang";
+    deleteForEveryoneOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
+    deleteForEveryoneOption.onclick = function () {
+        deleteMessageForEveryone(msg.id);
+        dropdownMenu.classList.add("hidden");
+    };
 
-                dropdownContainer.appendChild(dropdownButton);
-                dropdownContainer.appendChild(dropdownMenu);
+    dropdownMenu.appendChild(deleteForMeOption);
+    if (isSender) {
+        dropdownMenu.appendChild(deleteForEveryoneOption);
+    }
 
-                messageContainer.appendChild(messageBubble);
-                messageContainer.appendChild(dropdownContainer);
-            }
+    dropdownContainer.appendChild(dropdownButton);
+    dropdownContainer.appendChild(dropdownMenu);
 
-            chatBox.appendChild(messageContainer);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
+    messageContainer.appendChild(messageBubble);
+    messageContainer.appendChild(dropdownContainer);
+
+    chatBox.appendChild(messageContainer);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
 
 
         // **Fungsi memuat pesan lama**
