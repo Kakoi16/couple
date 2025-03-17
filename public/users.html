@@ -90,7 +90,7 @@
             Delete Chat
         </button>
     </h2>
-    <div id="chat-box" class="h-64 overflow-y-auto border p-3 bg-white rounded-md mt-2"></div>
+    <div id="chat-box" class="h-[100%] overflow-y-auto border p-3 bg-white rounded-md mt-2"></div>
     <div class="mt-2 flex">
         <input id="chat-input" type="text" class="flex-1 border p-2 rounded-l-md" placeholder="Type a message...">
         <button onclick="sendMessage('${username}')" class="bg-blue-600 text-white px-4 py-2 rounded-r-md">Send</button>
@@ -430,7 +430,7 @@ document.getElementById(`message-${messageId}`)?.remove();
     </header>
 
     <!-- Dynamic Content -->
-    <div id="main-content" class="mt-4 bg-white p-4 rounded-lg shadow-md h-[2000px]">
+    <div id="main-content" class="mt-4 bg-white p-4 rounded-lg shadow-md">
         <h2 class="text-xl font-semibold">Loading users...</h2>
     </div>
 </div>
