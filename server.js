@@ -108,23 +108,24 @@ app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // T
 
 
 
-app.delete('/api/chat/delete-for-everyone/:messageId', async (req, res) => { // Tambahkan async
+// Endpoint untuk menghapus pesan untuk semua orang
+app.delete("/api/chat/delete-for-everyone/:messageId", async (req, res) => {
     const { messageId } = req.params;
 
     try {
-        const { error } = await supabase
-            .from('messages')
-            .delete()
-            .eq('id', messageId);
+        // Hapus pesan dari database
+        await db.query("DELETE FROM messages WHERE id = $1", [messageId]);
 
-        if (error) throw error; // Jika ada error, lempar ke catch
+        // Emit event ke semua user agar menghapus pesan dari UI mereka
+        io.emit("messageDeleted", { messageId });
 
-        res.json({ success: true });
-    } catch (err) {
-        console.error("Error deleting message:", err);
-        res.status(500).json({ success: false, message: "Error deleting message." });
+        res.status(200).json({ message: "Pesan dihapus untuk semua orang" });
+    } catch (error) {
+        console.error("Error menghapus pesan:", error);
+        res.status(500).json({ error: "Gagal menghapus pesan" });
     }
 });
+
 
 
 // ====================
