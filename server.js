@@ -107,31 +107,24 @@ app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // T
 });
 
 
-app.delete("/api/chat/delete-for-everyone/:messageId", async (req, res) => {
+
+app.delete('/api/chat/delete-for-everyone/:messageId', async (req, res) => { // Tambahkan async
     const { messageId } = req.params;
 
     try {
-        console.log(`Menghapus pesan dengan ID: ${messageId}`);
+        const { error } = await supabase
+            .from('messages')
+            .delete()
+            .eq('id', messageId);
 
-        // Periksa apakah pesan ada sebelum dihapus
-        const result = await db.query("DELETE FROM messages WHERE id = $1 RETURNING *", [messageId]);
+        if (error) throw error; // Jika ada error, lempar ke catch
 
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: "Pesan tidak ditemukan atau sudah dihapus" });
-        }
-
-        console.log(`✅ Pesan ${messageId} berhasil dihapus`);
-
-        // Emit event ke semua user agar menghapus pesan dari UI mereka
-        io.emit("messageDeleted", { messageId });
-
-        res.status(200).json({ message: "Pesan dihapus untuk semua orang" });
-    } catch (error) {
-        console.error("Error menghapus pesan:", error);
-        res.status(500).json({ error: "Gagal menghapus pesan. Periksa log server untuk detail." });
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Error deleting message:", err);
+        res.status(500).json({ success: false, message: "Error deleting message." });
     }
 });
-
 
 
 // ====================
