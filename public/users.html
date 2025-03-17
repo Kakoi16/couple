@@ -249,52 +249,48 @@ async function deleteMessageForMe(messageId) {
 
 
         // **Fungsi memuat pesan lama**
-        // **Fungsi memuat pesan lama**
-async function loadMessages(sender, receiver) {
-    const chatBox = document.getElementById("chat-box");
-    chatBox.innerHTML = ""; // Kosongkan sebelum memuat pesan baru
+        async function loadMessages(sender, receiver) {
+            const chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML = ""; // Kosongkan sebelum memuat pesan baru
 
-    if (!sender || !receiver || sender === receiver) {
-        console.error("Sender atau Receiver tidak valid!", { sender, receiver });
-        chatBox.innerHTML = `<p class="text-red-500">Sender atau receiver tidak valid.</p>`;
-        return;
-    }
-
-    try {
-        console.log(`📥 Mengambil pesan antara ${sender} dan ${receiver}...`);
-        const res = await fetch(`/api/chat/messages/${sender}/${receiver}`);
-
-        if (!res.ok) {
-            const errorText = await res.text();
-            console.error("❌ Server response:", errorText);
-            throw new Error(`Gagal mengambil pesan: ${errorText}`);
-        }
-
-        const messages = await res.json();
-        console.log("📨 Pesan diterima:", messages);
-
-        if (!Array.isArray(messages)) throw new Error("Format data tidak valid.");
-
-        chatBox.innerHTML = ""; // Bersihkan pesan lama
-
-        messages.forEach(msg => {
-            if (!msg.deleted_for_user) { // 🔥 Pastikan pesan yang dihapus tidak ditampilkan
-                appendMessage(msg, msg.sender === sender);
+            if (!sender || !receiver || sender === receiver) {
+                console.error("Sender atau Receiver tidak valid!", { sender, receiver });
+                chatBox.innerHTML = `<p class="text-red-500">Sender atau receiver tidak valid.</p>`;
+                return;
             }
-        });
 
-        // **Simpan ID pesan terakhir agar polling hanya mengambil pesan baru**
-        if (messages.length > 0) {
-            lastMessageId = messages[messages.length - 1].id;
+            try {
+                console.log(`📥 Mengambil pesan antara ${sender} dan ${receiver}...`);
+                const res = await fetch(`/api/chat/messages/${sender}/${receiver}`);
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error("❌ Server response:", errorText);
+                    throw new Error(`Gagal mengambil pesan: ${errorText}`);
+                }
+
+                const messages = await res.json();
+                console.log("📨 Pesan diterima:", messages);
+
+                if (!Array.isArray(messages)) throw new Error("Format data tidak valid.");
+
+                chatBox.innerHTML = ""; // Bersihkan pesan lama
+
+                messages.forEach(msg => {
+                    appendMessage(msg, msg.sender === sender);
+                });
+
+                // **Simpan ID pesan terakhir agar polling hanya mengambil pesan baru**
+                if (messages.length > 0) {
+                    lastMessageId = messages[messages.length - 1].id;
+                }
+
+                chatBox.scrollTop = chatBox.scrollHeight;
+            } catch (error) {
+                console.error("Error loading messages:", error.message);
+                chatBox.innerHTML = `<p class="text-red-500">${error.message}</p>`;
+            }
         }
-
-        chatBox.scrollTop = chatBox.scrollHeight;
-    } catch (error) {
-        console.error("Error loading messages:", error.message);
-        chatBox.innerHTML = `<p class="text-red-500">${error.message}</p>`;
-    }
-}
-
 
         // **Fungsi untuk mengambil pesan baru tanpa refresh**
         async function fetchNewMessages(sender, receiver) {
