@@ -145,14 +145,9 @@ async function deleteMessageForMe(messageId) {
         console.log(`🗑️ Menghapus pesan ${messageId} untuk saya...`);
         const response = await fetch(`/api/chat/delete-for-me/${messageId}`, { method: "DELETE" });
 
-        if (!response.ok) {
-            const errorResponse = await response.json();
-            throw new Error(errorResponse.error || "Kesalahan tidak diketahui");
-        }
-
         const result = await response.json();
 
-        if (result.success) {
+        if (response.ok && result.success) {
             console.log(`✅ Pesan ${messageId} dihapus untuk saya.`);
 
             // **Hapus elemen pesan dari tampilan**
@@ -161,14 +156,14 @@ async function deleteMessageForMe(messageId) {
                 messageElement.remove();
                 console.log(`🗑️ Pesan ${messageId} berhasil dihapus dari tampilan.`);
             }
+
         } else {
             console.error("❌ Gagal menghapus pesan:", result.error || "Kesalahan tidak diketahui");
         }
     } catch (error) {
-        console.error("❌ Error menghapus pesan:", error.message);
+        console.error("❌ Error menghapus pesan:", error);
     }
 }
-
 
 
     function appendMessage(msg, isSender) {
@@ -303,35 +298,31 @@ async function loadMessages(sender, receiver) {
 
         // **Fungsi untuk mengambil pesan baru tanpa refresh**
         async function fetchNewMessages(sender, receiver) {
-    if (!lastMessageId) return; // Jika belum ada pesan, abaikan
+            if (!lastMessageId) return; // Jika belum ada pesan, abaikan
 
-    try {
-        console.log(`🔄 Mengecek pesan baru sejak ID ${lastMessageId}...`);
-        const res = await fetch(`/api/chat/messages/${sender}/${receiver}?lastId=${lastMessageId}`);
+            try {
+                console.log(`🔄 Mengecek pesan baru sejak ID ${lastMessageId}...`);
+                const res = await fetch(`/api/chat/messages/${sender}/${receiver}?lastId=${lastMessageId}`);
 
-        if (!res.ok) {
-            console.error("❌ Gagal mengambil pesan baru");
-            return;
+                if (!res.ok) {
+                    console.error("❌ Gagal mengambil pesan baru");
+                    return;
+                }
+
+                const messages = await res.json();
+                if (!Array.isArray(messages) || messages.length === 0) return;
+
+                console.log("📩 Pesan baru diterima:", messages);
+
+                messages.forEach(msg => {
+                    appendMessage(msg, msg.sender === sender);
+                });
+
+                lastMessageId = messages[messages.length - 1].id; // Update lastMessageId
+            } catch (error) {
+                console.error("Error fetching new messages:", error);
+            }
         }
-
-        let messages = await res.json();
-        if (!Array.isArray(messages) || messages.length === 0) return;
-
-        console.log("📩 Pesan baru diterima:", messages);
-
-        // **Pastikan pesan yang sudah dihapus tidak ditampilkan**
-        messages = messages.filter(msg => !msg.deleted_for_user);
-
-        messages.forEach(msg => {
-            appendMessage(msg, msg.sender === sender);
-        });
-
-        lastMessageId = messages[messages.length - 1].id; // Update lastMessageId
-    } catch (error) {
-        console.error("Error fetching new messages:", error);
-    }
-}
-
 
                // Fungsi untuk menghapus pesan untuk semua orang
 async function deleteMessageForEveryone(messageId) {

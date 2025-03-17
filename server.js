@@ -106,29 +106,6 @@ app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // T
     }
 });
 
-app.get("/api/chat/messages/:sender/:receiver", async (req, res) => {
-    const { sender, receiver } = req.params;
-    const lastId = req.query.lastId || 0;
-
-    try {
-        console.log(`📥 Mengambil pesan antara ${sender} dan ${receiver} sejak ID ${lastId}`);
-
-        const { data, error } = await supabase
-            .from("messages")
-            .select("*")
-            .or(`(sender.eq.${sender},receiver.eq.${receiver})`)
-            .neq("deleted_for_user", true) // 🔥 Pastikan pesan yang dihapus tidak diambil
-            .gt("id", lastId) // Ambil hanya pesan baru
-            .order("id", { ascending: true });
-
-        if (error) throw error;
-
-        res.status(200).json(data);
-    } catch (error) {
-        console.error("❌ ERROR mengambil pesan:", error.message);
-        res.status(500).json({ error: "Gagal mengambil pesan", detail: error.message });
-    }
-});
 
 app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
     const { messageId } = req.params;
@@ -136,9 +113,10 @@ app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
     try {
         console.log(`🔍 Mencoba menghapus pesan ${messageId} untuk user tertentu`);
 
-        // Validasi ID
+        // Pastikan messageId adalah angka
         if (isNaN(messageId)) {
-            return res.status(400).json({ success: false, error: "ID pesan tidak valid" });
+            console.error("❌ ID pesan tidak valid:", messageId);
+            return res.status(400).json({ error: "ID pesan tidak valid" });
         }
 
         // Update pesan di Supabase
@@ -149,21 +127,20 @@ app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
             .select();
 
         if (error) {
-            console.error("❌ ERROR dari Supabase:", error.message);
-            return res.status(500).json({ success: false, error: error.message });
+            throw error;
         }
 
         if (!data || data.length === 0) {
             console.error(`❌ Pesan ${messageId} tidak ditemukan dalam database.`);
-            return res.status(404).json({ success: false, error: "Pesan tidak ditemukan atau sudah dihapus" });
+            return res.status(404).json({ error: "Pesan tidak ditemukan atau sudah dihapus" });
         }
 
-        console.log(`✅ Pesan ${messageId} berhasil ditandai sebagai dihapus`);
-        return res.status(200).json({ success: true, message: "Pesan dihapus untuk saya" });
+        console.log(`✅ Pesan ${messageId} berhasil ditandai sebagai dihapus untuk user`);
+        res.status(200).json({ message: "Pesan dihapus untuk saya" });
 
     } catch (error) {
         console.error("❌ ERROR saat menghapus pesan:", error.message);
-        return res.status(500).json({ success: false, error: "Gagal menghapus pesan", detail: error.message });
+        res.status(500).json({ error: "Gagal menghapus pesan", detail: error.message });
     }
 });
 
