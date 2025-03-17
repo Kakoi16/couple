@@ -113,8 +113,9 @@ app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
     try {
         console.log(`🔍 Mencoba menghapus pesan ${messageId} untuk user tertentu`);
 
-        // Cek apakah messageId valid (harus angka)
+        // Pastikan messageId adalah angka
         if (isNaN(messageId)) {
+            console.error("❌ ID pesan tidak valid:", messageId);
             return res.status(400).json({ error: "ID pesan tidak valid" });
         }
 
@@ -122,14 +123,18 @@ app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
         const result = await db.query("UPDATE messages SET deleted_for_me = TRUE WHERE id = $1 RETURNING *", [messageId]);
 
         if (result.rowCount === 0) {
+            console.error(`❌ Pesan ${messageId} tidak ditemukan dalam database.`);
             return res.status(404).json({ error: "Pesan tidak ditemukan atau sudah dihapus" });
         }
 
         console.log(`✅ Pesan ${messageId} berhasil ditandai sebagai dihapus untuk user`);
         res.status(200).json({ message: "Pesan dihapus untuk saya" });
+
     } catch (error) {
-        console.error("❌ Error menghapus pesan:", error.stack);  // Tambahkan error.stack agar lebih jelas
-        res.status(500).json({ error: "Gagal menghapus pesan" });
+        console.error("❌ ERROR saat menghapus pesan:", error.message);
+        console.error(error.stack);  // Menampilkan stack trace agar tahu penyebab error
+
+        res.status(500).json({ error: "Gagal menghapus pesan", detail: error.message });
     }
 });
 

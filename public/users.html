@@ -292,23 +292,8 @@
                 console.error("Error fetching new messages:", error);
             }
         }
-        // Fungsi untuk menghapus pesan hanya untuk diri sendiri
-async function deleteMessageForMe(messageId) {
-    try {
-        const response = await fetch(`/api/chat/delete-for-me/${messageId}`, { method: "DELETE" });
 
-        if (response.ok) {
-            console.log(`✅ Pesan ${messageId} dihapus untuk saya.`);
-            document.getElementById(`message-${messageId}`)?.remove();
-        } else {
-            console.error("❌ Gagal menghapus pesan untuk saya:", await response.text());
-        }
-    } catch (error) {
-        console.error("Error menghapus pesan untuk saya:", error);
-    }
-}
-
-       // Fungsi untuk menghapus pesan untuk semua orang
+               // Fungsi untuk menghapus pesan untuk semua orang
 async function deleteMessageForEveryone(messageId) {
     try {
         const response = await fetch(`/api/chat/delete-for-everyone/${messageId}`, { method: "DELETE" });
