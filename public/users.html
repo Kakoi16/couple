@@ -139,11 +139,13 @@
         }
 
         // **Fungsi untuk menampilkan pesan di UI tanpa refresh**
-       // Fungsi untuk menampilkan pesan dengan tombol dropdown
-function appendMessage(msg, isSender) {
+        function appendMessage(msg, isSender) {
     let chatBox = document.getElementById("chat-box");
 
-    if (!chatBox) return;
+    if (!chatBox || !msg.id) {
+        console.error("Pesan tidak memiliki ID!", msg);
+        return;
+    }
 
     if (document.getElementById(`message-${msg.id}`)) return;
 
@@ -162,47 +164,57 @@ function appendMessage(msg, isSender) {
 
     messageBubble.textContent = msg.message;
 
-    // Tambahkan dropdown untuk hapus pesan
-    let dropdownContainer = document.createElement("div");
-    dropdownContainer.classList.add("relative", "ml-2");
+    // **Tambahkan dropdown untuk hapus pesan**
+    if (msg.id) {
+        let dropdownContainer = document.createElement("div");
+        dropdownContainer.classList.add("relative", "ml-2");
 
-    let dropdownButton = document.createElement("button");
-    dropdownButton.textContent = "⋮";
-    dropdownButton.classList.add("text-gray-600", "text-lg", "cursor-pointer", "hover:text-gray-900");
-    
-    let dropdownMenu = document.createElement("div");
-    dropdownMenu.classList.add("absolute", "right-0", "bg-white", "shadow-md", "rounded-md", "hidden", "z-10");
+        let dropdownButton = document.createElement("button");
+        dropdownButton.textContent = "⋮";
+        dropdownButton.classList.add("text-gray-600", "text-lg", "cursor-pointer", "hover:text-gray-900");
 
-    dropdownButton.onclick = function () {
-        dropdownMenu.classList.toggle("hidden");
-    };
+        let dropdownMenu = document.createElement("div");
+        dropdownMenu.classList.add("absolute", "right-0", "bg-white", "shadow-md", "rounded-md", "hidden", "z-10");
 
-    let deleteForMeOption = document.createElement("button");
-    deleteForMeOption.textContent = "Hapus untuk Saya";
-    deleteForMeOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
-    deleteForMeOption.onclick = function () {
-        deleteMessageForMe(msg.id);
-        dropdownMenu.classList.add("hidden");
-    };
+        dropdownButton.onclick = function () {
+            dropdownMenu.classList.toggle("hidden");
+        };
 
-    let deleteForEveryoneOption = document.createElement("button");
-    deleteForEveryoneOption.textContent = "Hapus untuk Semua Orang";
-    deleteForEveryoneOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
-    deleteForEveryoneOption.onclick = function () {
-        deleteMessageForEveryone(msg.id);
-        dropdownMenu.classList.add("hidden");
-    };
+        let deleteForMeOption = document.createElement("button");
+        deleteForMeOption.textContent = "Hapus untuk Saya";
+        deleteForMeOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
+        deleteForMeOption.onclick = function () {
+            if (msg.id) {
+                deleteMessageForMe(msg.id);
+                dropdownMenu.classList.add("hidden");
+            } else {
+                console.error("ID pesan tidak ditemukan untuk hapus untuk saya!", msg);
+            }
+        };
 
-    dropdownMenu.appendChild(deleteForMeOption);
-    if (isSender) {
-        dropdownMenu.appendChild(deleteForEveryoneOption);
+        let deleteForEveryoneOption = document.createElement("button");
+        deleteForEveryoneOption.textContent = "Hapus untuk Semua Orang";
+        deleteForEveryoneOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
+        deleteForEveryoneOption.onclick = function () {
+            if (msg.id) {
+                deleteMessageForEveryone(msg.id);
+                dropdownMenu.classList.add("hidden");
+            } else {
+                console.error("ID pesan tidak ditemukan untuk hapus untuk semua orang!", msg);
+            }
+        };
+
+        dropdownMenu.appendChild(deleteForMeOption);
+        if (isSender) {
+            dropdownMenu.appendChild(deleteForEveryoneOption);
+        }
+
+        dropdownContainer.appendChild(dropdownButton);
+        dropdownContainer.appendChild(dropdownMenu);
+
+        messageContainer.appendChild(messageBubble);
+        messageContainer.appendChild(dropdownContainer);
     }
-
-    dropdownContainer.appendChild(dropdownButton);
-    dropdownContainer.appendChild(dropdownMenu);
-
-    messageContainer.appendChild(messageBubble);
-    messageContainer.appendChild(dropdownContainer);
 
     chatBox.appendChild(messageContainer);
     chatBox.scrollTop = chatBox.scrollHeight;
