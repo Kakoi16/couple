@@ -107,14 +107,20 @@ app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // T
 });
 
 
-
-// Endpoint untuk menghapus pesan untuk semua orang
 app.delete("/api/chat/delete-for-everyone/:messageId", async (req, res) => {
     const { messageId } = req.params;
 
     try {
-        // Hapus pesan dari database
-        await db.query("DELETE FROM messages WHERE id = $1", [messageId]);
+        console.log(`Menghapus pesan dengan ID: ${messageId}`);
+
+        // Periksa apakah pesan ada sebelum dihapus
+        const result = await db.query("DELETE FROM messages WHERE id = $1 RETURNING *", [messageId]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "Pesan tidak ditemukan atau sudah dihapus" });
+        }
+
+        console.log(`✅ Pesan ${messageId} berhasil dihapus`);
 
         // Emit event ke semua user agar menghapus pesan dari UI mereka
         io.emit("messageDeleted", { messageId });
@@ -122,7 +128,7 @@ app.delete("/api/chat/delete-for-everyone/:messageId", async (req, res) => {
         res.status(200).json({ message: "Pesan dihapus untuk semua orang" });
     } catch (error) {
         console.error("Error menghapus pesan:", error);
-        res.status(500).json({ error: "Gagal menghapus pesan" });
+        res.status(500).json({ error: "Gagal menghapus pesan. Periksa log server untuk detail." });
     }
 });
 
