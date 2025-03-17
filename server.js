@@ -107,12 +107,16 @@ app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // T
 });
 
 
-
 app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
     const { messageId } = req.params;
 
     try {
         console.log(`🔍 Mencoba menghapus pesan ${messageId} untuk user tertentu`);
+
+        // Cek apakah messageId valid (harus angka)
+        if (isNaN(messageId)) {
+            return res.status(400).json({ error: "ID pesan tidak valid" });
+        }
 
         // Pastikan pesan ada dalam database
         const result = await db.query("UPDATE messages SET deleted_for_me = TRUE WHERE id = $1 RETURNING *", [messageId]);
@@ -122,10 +126,9 @@ app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
         }
 
         console.log(`✅ Pesan ${messageId} berhasil ditandai sebagai dihapus untuk user`);
-
         res.status(200).json({ message: "Pesan dihapus untuk saya" });
     } catch (error) {
-        console.error("❌ Error menghapus pesan:", error);
+        console.error("❌ Error menghapus pesan:", error.stack);  // Tambahkan error.stack agar lebih jelas
         res.status(500).json({ error: "Gagal menghapus pesan" });
     }
 });
