@@ -108,6 +108,30 @@ app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // T
 
 
 
+app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
+    const { messageId } = req.params;
+
+    try {
+        console.log(`🔍 Mencoba menghapus pesan ${messageId} untuk user tertentu`);
+
+        // Pastikan pesan ada dalam database
+        const result = await db.query("UPDATE messages SET deleted_for_me = TRUE WHERE id = $1 RETURNING *", [messageId]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "Pesan tidak ditemukan atau sudah dihapus" });
+        }
+
+        console.log(`✅ Pesan ${messageId} berhasil ditandai sebagai dihapus untuk user`);
+
+        res.status(200).json({ message: "Pesan dihapus untuk saya" });
+    } catch (error) {
+        console.error("❌ Error menghapus pesan:", error);
+        res.status(500).json({ error: "Gagal menghapus pesan" });
+    }
+});
+
+
+
 app.delete('/api/chat/delete-for-everyone/:messageId', async (req, res) => { // Tambahkan async
     const { messageId } = req.params;
 
