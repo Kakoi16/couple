@@ -145,9 +145,14 @@ async function deleteMessageForMe(messageId) {
         console.log(`🗑️ Menghapus pesan ${messageId} untuk saya...`);
         const response = await fetch(`/api/chat/delete-for-me/${messageId}`, { method: "DELETE" });
 
+        if (!response.ok) {
+            const errorResponse = await response.json();
+            throw new Error(errorResponse.error || "Kesalahan tidak diketahui");
+        }
+
         const result = await response.json();
 
-        if (response.ok && result.success) {
+        if (result.success) {
             console.log(`✅ Pesan ${messageId} dihapus untuk saya.`);
 
             // **Hapus elemen pesan dari tampilan**
@@ -156,14 +161,14 @@ async function deleteMessageForMe(messageId) {
                 messageElement.remove();
                 console.log(`🗑️ Pesan ${messageId} berhasil dihapus dari tampilan.`);
             }
-
         } else {
             console.error("❌ Gagal menghapus pesan:", result.error || "Kesalahan tidak diketahui");
         }
     } catch (error) {
-        console.error("❌ Error menghapus pesan:", error);
+        console.error("❌ Error menghapus pesan:", error.message);
     }
 }
+
 
 
     function appendMessage(msg, isSender) {

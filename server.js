@@ -136,10 +136,9 @@ app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
     try {
         console.log(`🔍 Mencoba menghapus pesan ${messageId} untuk user tertentu`);
 
-        // Pastikan messageId adalah angka
+        // Validasi ID
         if (isNaN(messageId)) {
-            console.error("❌ ID pesan tidak valid:", messageId);
-            return res.status(400).json({ error: "ID pesan tidak valid" });
+            return res.status(400).json({ success: false, error: "ID pesan tidak valid" });
         }
 
         // Update pesan di Supabase
@@ -150,20 +149,21 @@ app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
             .select();
 
         if (error) {
-            throw error;
+            console.error("❌ ERROR dari Supabase:", error.message);
+            return res.status(500).json({ success: false, error: error.message });
         }
 
         if (!data || data.length === 0) {
             console.error(`❌ Pesan ${messageId} tidak ditemukan dalam database.`);
-            return res.status(404).json({ error: "Pesan tidak ditemukan atau sudah dihapus" });
+            return res.status(404).json({ success: false, error: "Pesan tidak ditemukan atau sudah dihapus" });
         }
 
-        console.log(`✅ Pesan ${messageId} berhasil ditandai sebagai dihapus untuk user`);
-        res.status(200).json({ message: "Pesan dihapus untuk saya" });
+        console.log(`✅ Pesan ${messageId} berhasil ditandai sebagai dihapus`);
+        return res.status(200).json({ success: true, message: "Pesan dihapus untuk saya" });
 
     } catch (error) {
         console.error("❌ ERROR saat menghapus pesan:", error.message);
-        res.status(500).json({ error: "Gagal menghapus pesan", detail: error.message });
+        return res.status(500).json({ success: false, error: "Gagal menghapus pesan", detail: error.message });
     }
 });
 
