@@ -113,36 +113,34 @@ app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
     try {
         console.log(`🔍 Mencoba menghapus pesan ${messageId} untuk user tertentu`);
 
-        // Pastikan messageId adalah angka
         if (isNaN(messageId)) {
             console.error("❌ ID pesan tidak valid:", messageId);
             return res.status(400).json({ error: "ID pesan tidak valid" });
         }
 
-        // Update pesan di Supabase
+        // Update pesan di Supabase agar ditandai sebagai "dihapus untuk user"
         const { data, error } = await supabase
             .from("messages")
-            .update({ deleted_for_user: true }) // Pastikan kolom ini ada di database
+            .update({ deleted_for_user: true })
             .eq("id", messageId)
             .select();
 
-        if (error) {
-            throw error;
-        }
+        if (error) throw error;
 
         if (!data || data.length === 0) {
-            console.error(`❌ Pesan ${messageId} tidak ditemukan dalam database.`);
+            console.error(`❌ Pesan ${messageId} tidak ditemukan.`);
             return res.status(404).json({ error: "Pesan tidak ditemukan atau sudah dihapus" });
         }
 
-        console.log(`✅ Pesan ${messageId} berhasil ditandai sebagai dihapus untuk user`);
-        res.status(200).json({ message: "Pesan dihapus untuk saya" });
+        console.log(`✅ Pesan ${messageId} berhasil ditandai sebagai dihapus`);
+        res.status(200).json({ success: true, messageId });
 
     } catch (error) {
         console.error("❌ ERROR saat menghapus pesan:", error.message);
         res.status(500).json({ error: "Gagal menghapus pesan", detail: error.message });
     }
 });
+
 
 
 

@@ -139,21 +139,32 @@
         }
 
     // **Fungsi untuk menghapus pesan hanya untuk diri sendiri**
-    async function deleteMessageForMe(messageId) {
-        try {
-            console.log(`🗑️ Menghapus pesan ${messageId} untuk saya...`);
-            const response = await fetch(`/api/chat/delete-for-me/${messageId}`, { method: "DELETE" });
+// **Fungsi untuk menghapus pesan hanya untuk diri sendiri**
+async function deleteMessageForMe(messageId) {
+    try {
+        console.log(`🗑️ Menghapus pesan ${messageId} untuk saya...`);
+        const response = await fetch(`/api/chat/delete-for-me/${messageId}`, { method: "DELETE" });
 
-            if (response.ok) {
-                console.log(`✅ Pesan ${messageId} dihapus untuk saya.`);
-                document.getElementById(`message-${messageId}`)?.remove();
-            } else {
-                console.error("❌ Gagal menghapus pesan untuk saya:", await response.text());
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            console.log(`✅ Pesan ${messageId} dihapus untuk saya.`);
+
+            // **Hapus elemen pesan dari tampilan**
+            const messageElement = document.getElementById(`message-${messageId}`);
+            if (messageElement) {
+                messageElement.remove();
+                console.log(`🗑️ Pesan ${messageId} berhasil dihapus dari tampilan.`);
             }
-        } catch (error) {
-            console.error("❌ Error menghapus pesan untuk saya:", error);
+
+        } else {
+            console.error("❌ Gagal menghapus pesan:", result.error || "Kesalahan tidak diketahui");
         }
+    } catch (error) {
+        console.error("❌ Error menghapus pesan:", error);
     }
+}
+
 
     function appendMessage(msg, isSender) {
         let chatBox = document.getElementById("chat-box");
