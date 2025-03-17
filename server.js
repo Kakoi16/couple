@@ -8,6 +8,7 @@ const http = require('http');
 const { Server } = require('socket.io'); 
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
+app.use(cors()); 
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
@@ -119,10 +120,18 @@ app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
             return res.status(400).json({ error: "ID pesan tidak valid" });
         }
 
-        // Pastikan pesan ada dalam database
-        const result = await db.query("UPDATE messages SET deleted_for_me = TRUE WHERE id = $1 RETURNING *", [messageId]);
+        // Update pesan di Supabase
+        const { data, error } = await supabase
+            .from("messages")
+            .update({ deleted_for_user: true }) // Pastikan kolom ini ada di database
+            .eq("id", messageId)
+            .select();
 
-        if (result.rowCount === 0) {
+        if (error) {
+            throw error;
+        }
+
+        if (!data || data.length === 0) {
             console.error(`❌ Pesan ${messageId} tidak ditemukan dalam database.`);
             return res.status(404).json({ error: "Pesan tidak ditemukan atau sudah dihapus" });
         }
@@ -132,11 +141,10 @@ app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
 
     } catch (error) {
         console.error("❌ ERROR saat menghapus pesan:", error.message);
-        console.error(error.stack);  // Menampilkan stack trace agar tahu penyebab error
-
         res.status(500).json({ error: "Gagal menghapus pesan", detail: error.message });
     }
 });
+
 
 
 
