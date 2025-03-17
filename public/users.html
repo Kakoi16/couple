@@ -2,442 +2,442 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Users Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        let currentUser = null;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Users Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    let currentUser = null;
 
-        async function checkAuth() {
-            try {
-                const res = await fetch('/api/auth/check');
-                const data = await res.json();
+    async function checkAuth() {
+        try {
+            const res = await fetch('/api/auth/check');
+            const data = await res.json();
 
-                if (!data.authenticated) {
-                    window.location.href = "/register.html"; // Redirect ke register jika belum login
-                } else {
-                    currentUser = data.user.username; // Simpan username saat ini
-                    console.log("Logged in as:", currentUser);
-                }
-            } catch (error) {
-                console.error("Error checking authentication:", error);
-                window.location.href = "/register.html"; // Redirect jika ada kesalahan
-            }
-        }
-
-        document.addEventListener("DOMContentLoaded", checkAuth);
-
-
-        function toggleSidebar() {
-            document.getElementById("sidebar").classList.toggle("-translate-x-full");
-        }
-
-        function showContent(page) {
-            let content = document.getElementById("main-content");
-
-            if (page === "users") {
-                fetchUsers(); // Panggil fetchUsers() yang sudah didefinisikan di bawah
+            if (!data.authenticated) {
+                window.location.href = "/register.html"; // Redirect ke register jika belum login
             } else {
-                content.innerHTML = `
-            <h2 class="text-xl font-semibold">${page.charAt(0).toUpperCase() + page.slice(1)}</h2>
-            <p class="text-gray-600">${page === "settings" ? "Adjust settings here." : "You have logged out."}</p>
-        `;
+                currentUser = data.user.username; // Simpan username saat ini
+                console.log("Logged in as:", currentUser);
             }
+        } catch (error) {
+            console.error("Error checking authentication:", error);
+            window.location.href = "/register.html"; // Redirect jika ada kesalahan
         }
-
-        const socket = io(); // Inisialisasi koneksi WebSocket sekali saja di awal
-        // **Tambahkan fungsi fetchUsers() di luar event listener**
-        async function fetchUsers() {
-            try {
-                let response = await fetch('/api/users');
-                if (!response.ok) {
-                    throw new Error(`Gagal memuat: ${response.status}`);
-                }
-
-                let users = await response.json();
-                let content = document.getElementById("main-content");
-                content.innerHTML = `<h2 class="text-xl font-semibold">Users</h2><ul id="user-list"></ul>`;
-
-                let ul = document.getElementById("user-list");
-                users.forEach(user => {
-                    let li = document.createElement("li");
-                    li.classList.add("p-2", "border-b", "cursor-pointer");
-                    li.textContent = user.username;
-                    li.onclick = () => startChat(user.username);
-                    ul.appendChild(li);
-                });
-            } catch (error) {
-                console.error("Error fetching users:", error.message);
-            }
-        }
-        // Fungsi untuk mulai chat
-        let lastMessageId = null; // Menyimpan ID pesan terakhir agar tidak duplikat
-
-        function startChat(username) {
-            if (!currentUser || currentUser === username) {
-                console.error("❌ currentUser tidak valid untuk chat!", { currentUser, username });
-                alert("Anda tidak bisa mengirim pesan ke diri sendiri atau user tidak valid.");
-                return;
-            }
-
-            let content = document.getElementById("main-content");
-            content.innerHTML = `
-        <h2 class="text-xl font-semibold flex justify-between">
-            Chat with ${username}
-            <button onclick="deleteChat('${username}')" class="bg-red-500 text-white px-3 py-1 rounded-md text-sm">
-                Delete Chat
-            </button>
-        </h2>
-        <div id="chat-box" class="h-64 overflow-y-auto border p-3 bg-white rounded-md mt-2"></div>
-        <div class="mt-2 flex">
-            <input id="chat-input" type="text" class="flex-1 border p-2 rounded-l-md" placeholder="Type a message...">
-            <button onclick="sendMessage('${username}')" class="bg-blue-600 text-white px-4 py-2 rounded-r-md">Send</button>
-        </div>
-    `;
-
-            console.log("🟢 Memulai chat antara:", currentUser, "dan", username);
-            loadMessages(currentUser, username);
-
-            // **Tambahkan polling setiap 3 detik untuk cek pesan baru**
-            if (window.chatInterval) clearInterval(window.chatInterval);
-            window.chatInterval = setInterval(() => {
-                fetchNewMessages(currentUser, username);
-            }, 3000);
-        }
-
-        // **Event listener WebSocket**
-        socket.on("newMessage", (msg) => {
-            console.log("📩 Pesan diterima:", msg);
-            appendMessage(msg, msg.sender === currentUser);
-        });
-
-        // **Fungsi mengirim pesan**
-        function sendMessage(receiver) {
-            let input = document.getElementById("chat-input");
-            let chatBox = document.getElementById("chat-box");
-
-            if (!currentUser || currentUser === receiver) {
-                console.error("❌ User tidak valid atau mencoba mengirim ke diri sendiri!");
-                alert("Anda tidak bisa mengirim pesan ke diri sendiri.");
-                return;
-            }
-
-            if (input.value.trim() !== "") {
-                let messageText = input.value;
-                input.value = "";
-
-                appendMessage({ sender: currentUser, message: messageText }, true);
-
-                socket.emit("sendMessage", {
-                    sender: currentUser,
-                    receiver,
-                    message: messageText
-                });
-            }
-        }
-
-    // **Fungsi untuk menghapus pesan hanya untuk diri sendiri**
-// **Fungsi untuk menghapus pesan hanya untuk diri sendiri**
-async function deleteMessageForMe(messageId) {
-    try {
-        console.log(`🗑️ Menghapus pesan ${messageId} untuk saya...`);
-        const response = await fetch(`/api/chat/delete-for-me/${messageId}`, { method: "DELETE" });
-
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-            console.log(`✅ Pesan ${messageId} dihapus untuk saya.`);
-
-            // **Hapus elemen pesan dari tampilan**
-            const messageElement = document.getElementById(`message-${messageId}`);
-            if (messageElement) {
-                messageElement.remove();
-                console.log(`🗑️ Pesan ${messageId} berhasil dihapus dari tampilan.`);
-            }
-
-        } else {
-            console.error("❌ Gagal menghapus pesan:", result.error || "Kesalahan tidak diketahui");
-        }
-    } catch (error) {
-        console.error("❌ Error menghapus pesan:", error);
     }
-}
+
+    document.addEventListener("DOMContentLoaded", checkAuth);
 
 
-    function appendMessage(msg, isSender) {
-        let chatBox = document.getElementById("chat-box");
+    function toggleSidebar() {
+        document.getElementById("sidebar").classList.toggle("-translate-x-full");
+    }
 
-        if (!chatBox || !msg.id) {
-            console.error("Pesan tidak memiliki ID!", msg);
+    function showContent(page) {
+        let content = document.getElementById("main-content");
+
+        if (page === "users") {
+            fetchUsers(); // Panggil fetchUsers() yang sudah didefinisikan di bawah
+        } else {
+            content.innerHTML = `
+        <h2 class="text-xl font-semibold">${page.charAt(0).toUpperCase() + page.slice(1)}</h2>
+        <p class="text-gray-600">${page === "settings" ? "Adjust settings here." : "You have logged out."}</p>
+    `;
+        }
+    }
+
+    const socket = io(); // Inisialisasi koneksi WebSocket sekali saja di awal
+    // **Tambahkan fungsi fetchUsers() di luar event listener**
+    async function fetchUsers() {
+        try {
+            let response = await fetch('/api/users');
+            if (!response.ok) {
+                throw new Error(`Gagal memuat: ${response.status}`);
+            }
+
+            let users = await response.json();
+            let content = document.getElementById("main-content");
+            content.innerHTML = `<h2 class="text-xl font-semibold">Users</h2><ul id="user-list"></ul>`;
+
+            let ul = document.getElementById("user-list");
+            users.forEach(user => {
+                let li = document.createElement("li");
+                li.classList.add("p-2", "border-b", "cursor-pointer");
+                li.textContent = user.username;
+                li.onclick = () => startChat(user.username);
+                ul.appendChild(li);
+            });
+        } catch (error) {
+            console.error("Error fetching users:", error.message);
+        }
+    }
+    // Fungsi untuk mulai chat
+    let lastMessageId = null; // Menyimpan ID pesan terakhir agar tidak duplikat
+
+    function startChat(username) {
+        if (!currentUser || currentUser === username) {
+            console.error("❌", { currentUser, username });
+            alert("Anda tidak bisa mengirim pesan ke diri sendiri");
             return;
         }
 
-        if (document.getElementById(`message-${msg.id}`)) return;
+        let content = document.getElementById("main-content");
+        content.innerHTML = `
+    <h2 class="text-xl font-semibold flex justify-between">
+        Chat with ${username}
+        <button onclick="deleteChat('${username}')" class="bg-red-500 text-white px-3 py-1 rounded-md text-sm">
+            Delete Chat
+        </button>
+    </h2>
+    <div id="chat-box" class="h-64 overflow-y-auto border p-3 bg-white rounded-md mt-2"></div>
+    <div class="mt-2 flex">
+        <input id="chat-input" type="text" class="flex-1 border p-2 rounded-l-md" placeholder="Type a message...">
+        <button onclick="sendMessage('${username}')" class="bg-blue-600 text-white px-4 py-2 rounded-r-md">Send</button>
+    </div>
+`;
 
-        let messageContainer = document.createElement("div");
-        messageContainer.id = `message-${msg.id}`;
-        messageContainer.classList.add(
-            "relative", "flex", isSender ? "justify-end" : "justify-start"
-        );
+        console.log("🟢 Memulai chat antara:", currentUser, "dan", username);
+        loadMessages(currentUser, username);
 
-        let messageBubble = document.createElement("div");
-        messageBubble.classList.add(
-            isSender ? "bg-blue-500" : "bg-gray-300",
-            isSender ? "text-white" : "text-black",
-            "p-2", "rounded-md", "my-1", "w-max", "relative"
-        );
-
-        messageBubble.textContent = msg.message;
-
-        // **Tambahkan dropdown untuk hapus pesan**
-        if (msg.id) {
-            let dropdownContainer = document.createElement("div");
-            dropdownContainer.classList.add("relative", "ml-2");
-
-            let dropdownButton = document.createElement("button");
-            dropdownButton.textContent = "⋮";
-            dropdownButton.classList.add("text-gray-600", "text-lg", "cursor-pointer", "hover:text-gray-900");
-
-            let dropdownMenu = document.createElement("div");
-            dropdownMenu.classList.add("absolute", "right-0", "bg-white", "shadow-md", "rounded-md", "hidden", "z-10");
-
-            dropdownButton.onclick = function () {
-                dropdownMenu.classList.toggle("hidden");
-            };
-
-            let deleteForMeOption = document.createElement("button");
-            deleteForMeOption.textContent = "Hapus untuk Saya";
-            deleteForMeOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
-            deleteForMeOption.onclick = function () {
-                if (msg.id) {
-                    deleteMessageForMe(msg.id);
-                    dropdownMenu.classList.add("hidden");
-                } else {
-                    console.error("ID pesan tidak ditemukan untuk hapus untuk saya!", msg);
-                }
-            };
-
-            let deleteForEveryoneOption = document.createElement("button");
-            deleteForEveryoneOption.textContent = "Hapus untuk Semua Orang";
-            deleteForEveryoneOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
-            deleteForEveryoneOption.onclick = function () {
-                if (msg.id) {
-                    deleteMessageForEveryone(msg.id);
-                    dropdownMenu.classList.add("hidden");
-                } else {
-                    console.error("ID pesan tidak ditemukan untuk hapus untuk semua orang!", msg);
-                }
-            };
-
-            dropdownMenu.appendChild(deleteForMeOption);
-            if (isSender) {
-                dropdownMenu.appendChild(deleteForEveryoneOption);
-            }
-
-            dropdownContainer.appendChild(dropdownButton);
-            dropdownContainer.appendChild(dropdownMenu);
-
-            messageContainer.appendChild(messageBubble);
-            messageContainer.appendChild(dropdownContainer);
-        }
-
-        chatBox.appendChild(messageContainer);
-        chatBox.scrollTop = chatBox.scrollHeight;
+        // **Tambahkan polling setiap 3 detik untuk cek pesan baru**
+        if (window.chatInterval) clearInterval(window.chatInterval);
+        window.chatInterval = setInterval(() => {
+            fetchNewMessages(currentUser, username);
+        }, 3000);
     }
 
+    // **Event listener WebSocket**
+    socket.on("newMessage", (msg) => {
+        console.log("📩 Pesan diterima:", msg);
+        appendMessage(msg, msg.sender === currentUser);
+    });
 
-        // **Fungsi memuat pesan lama**
-        async function loadMessages(sender, receiver) {
-            const chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML = ""; // Kosongkan sebelum memuat pesan baru
+    // **Fungsi mengirim pesan**
+    function sendMessage(receiver) {
+        let input = document.getElementById("chat-input");
+        let chatBox = document.getElementById("chat-box");
 
-            if (!sender || !receiver || sender === receiver) {
-                console.error("Sender atau Receiver tidak valid!", { sender, receiver });
-                chatBox.innerHTML = `<p class="text-red-500">Sender atau receiver tidak valid.</p>`;
+        if (!currentUser || currentUser === receiver) {
+            console.error("❌ User tidak valid atau mencoba mengirim ke diri sendiri!");
+            alert("Anda tidak bisa mengirim pesan ke diri sendiri.");
+            return;
+        }
+
+        if (input.value.trim() !== "") {
+            let messageText = input.value;
+            input.value = "";
+
+            appendMessage({ sender: currentUser, message: messageText }, true);
+
+            socket.emit("sendMessage", {
+                sender: currentUser,
+                receiver,
+                message: messageText
+            });
+        }
+    }
+
+// **Fungsi untuk menghapus pesan hanya untuk diri sendiri**
+// **Fungsi untuk menghapus pesan hanya untuk diri sendiri**
+async function deleteMessageForMe(messageId) {
+try {
+    console.log(`🗑️ Menghapus pesan ${messageId} untuk saya...`);
+    const response = await fetch(`/api/chat/delete-for-me/${messageId}`, { method: "DELETE" });
+
+    const result = await response.json();
+
+    if (response.ok && result.success) {
+        console.log(`✅ Pesan ${messageId} dihapus untuk saya.`);
+
+        // **Hapus elemen pesan dari tampilan**
+        const messageElement = document.getElementById(`message-${messageId}`);
+        if (messageElement) {
+            messageElement.remove();
+            console.log(`🗑️ Pesan ${messageId} berhasil dihapus dari tampilan.`);
+        }
+
+    } else {
+        console.error("❌ Gagal menghapus pesan:", result.error || "Kesalahan tidak diketahui");
+    }
+} catch (error) {
+    console.error("❌ Error menghapus pesan:", error);
+}
+}
+
+
+function appendMessage(msg, isSender) {
+    let chatBox = document.getElementById("chat-box");
+
+    if (!chatBox || !msg.id) {
+        console.error("Pesan tidak memiliki ID!", msg);
+        return;
+    }
+
+    if (document.getElementById(`message-${msg.id}`)) return;
+
+    let messageContainer = document.createElement("div");
+    messageContainer.id = `message-${msg.id}`;
+    messageContainer.classList.add(
+        "relative", "flex", isSender ? "justify-end" : "justify-start"
+    );
+
+    let messageBubble = document.createElement("div");
+    messageBubble.classList.add(
+        isSender ? "bg-blue-500" : "bg-gray-300",
+        isSender ? "text-white" : "text-black",
+        "p-2", "rounded-md", "my-1", "w-max", "relative"
+    );
+
+    messageBubble.textContent = msg.message;
+
+    // **Tambahkan dropdown untuk hapus pesan**
+    if (msg.id) {
+        let dropdownContainer = document.createElement("div");
+        dropdownContainer.classList.add("relative", "ml-2");
+
+        let dropdownButton = document.createElement("button");
+        dropdownButton.textContent = "⋮";
+        dropdownButton.classList.add("text-gray-600", "text-lg", "cursor-pointer", "hover:text-gray-900");
+
+        let dropdownMenu = document.createElement("div");
+        dropdownMenu.classList.add("absolute", "right-0", "bg-white", "shadow-md", "rounded-md", "hidden", "z-10");
+
+        dropdownButton.onclick = function () {
+            dropdownMenu.classList.toggle("hidden");
+        };
+
+        let deleteForMeOption = document.createElement("button");
+        deleteForMeOption.textContent = "Hapus untuk Saya";
+        deleteForMeOption.classList.add("hidden", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
+        deleteForMeOption.onclick = function () {
+            if (msg.id) {
+                deleteMessageForMe(msg.id);
+                dropdownMenu.classList.add("hidden");
+            } else {
+                console.error("ID pesan tidak ditemukan untuk hapus untuk saya!", msg);
+            }
+        };
+
+        let deleteForEveryoneOption = document.createElement("button");
+        deleteForEveryoneOption.textContent = "Hapus untuk Semua Orang";
+        deleteForEveryoneOption.classList.add("block", "px-3", "py-2", "hover:bg-gray-200", "text-sm", "w-full", "text-left");
+        deleteForEveryoneOption.onclick = function () {
+            if (msg.id) {
+                deleteMessageForEveryone(msg.id);
+                dropdownMenu.classList.add("hidden");
+            } else {
+                console.error("ID pesan tidak ditemukan untuk hapus untuk semua orang!", msg);
+            }
+        };
+
+        dropdownMenu.appendChild(deleteForMeOption);
+        if (isSender) {
+            dropdownMenu.appendChild(deleteForEveryoneOption);
+        }
+
+        dropdownContainer.appendChild(dropdownButton);
+        dropdownContainer.appendChild(dropdownMenu);
+
+        messageContainer.appendChild(messageBubble);
+        messageContainer.appendChild(dropdownContainer);
+    }
+
+    chatBox.appendChild(messageContainer);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+
+    // **Fungsi memuat pesan lama**
+    async function loadMessages(sender, receiver) {
+        const chatBox = document.getElementById("chat-box");
+        chatBox.innerHTML = ""; // Kosongkan sebelum memuat pesan baru
+
+        if (!sender || !receiver || sender === receiver) {
+            console.error("Sender atau Receiver tidak valid!", { sender, receiver });
+            chatBox.innerHTML = `<p class="text-red-500">Sender atau receiver tidak valid.</p>`;
+            return;
+        }
+
+        try {
+            console.log(`📥 Mengambil pesan antara ${sender} dan ${receiver}...`);
+            const res = await fetch(`/api/chat/messages/${sender}/${receiver}`);
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                console.error("❌ Server response:", errorText);
+                throw new Error(`Gagal mengambil pesan: ${errorText}`);
+            }
+
+            const messages = await res.json();
+            console.log("📨 Pesan diterima:", messages);
+
+            if (!Array.isArray(messages)) throw new Error("Format data tidak valid.");
+
+            chatBox.innerHTML = ""; // Bersihkan pesan lama
+
+            messages.forEach(msg => {
+                appendMessage(msg, msg.sender === sender);
+            });
+
+            // **Simpan ID pesan terakhir agar polling hanya mengambil pesan baru**
+            if (messages.length > 0) {
+                lastMessageId = messages[messages.length - 1].id;
+            }
+
+            chatBox.scrollTop = chatBox.scrollHeight;
+        } catch (error) {
+            console.error("Error loading messages:", error.message);
+            chatBox.innerHTML = `<p class="text-red-500">${error.message}</p>`;
+        }
+    }
+
+    // **Fungsi untuk mengambil pesan baru tanpa refresh**
+    async function fetchNewMessages(sender, receiver) {
+        if (!lastMessageId) return; // Jika belum ada pesan, abaikan
+
+        try {
+            console.log(`🔄 Mengecek pesan baru sejak ID ${lastMessageId}...`);
+            const res = await fetch(`/api/chat/messages/${sender}/${receiver}?lastId=${lastMessageId}`);
+
+            if (!res.ok) {
+                console.error("❌ Gagal mengambil pesan baru");
                 return;
             }
 
-            try {
-                console.log(`📥 Mengambil pesan antara ${sender} dan ${receiver}...`);
-                const res = await fetch(`/api/chat/messages/${sender}/${receiver}`);
+            const messages = await res.json();
+            if (!Array.isArray(messages) || messages.length === 0) return;
 
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    console.error("❌ Server response:", errorText);
-                    throw new Error(`Gagal mengambil pesan: ${errorText}`);
-                }
+            console.log("📩 Pesan baru diterima:", messages);
 
-                const messages = await res.json();
-                console.log("📨 Pesan diterima:", messages);
+            messages.forEach(msg => {
+                appendMessage(msg, msg.sender === sender);
+            });
 
-                if (!Array.isArray(messages)) throw new Error("Format data tidak valid.");
-
-                chatBox.innerHTML = ""; // Bersihkan pesan lama
-
-                messages.forEach(msg => {
-                    appendMessage(msg, msg.sender === sender);
-                });
-
-                // **Simpan ID pesan terakhir agar polling hanya mengambil pesan baru**
-                if (messages.length > 0) {
-                    lastMessageId = messages[messages.length - 1].id;
-                }
-
-                chatBox.scrollTop = chatBox.scrollHeight;
-            } catch (error) {
-                console.error("Error loading messages:", error.message);
-                chatBox.innerHTML = `<p class="text-red-500">${error.message}</p>`;
-            }
+            lastMessageId = messages[messages.length - 1].id; // Update lastMessageId
+        } catch (error) {
+            console.error("Error fetching new messages:", error);
         }
-
-        // **Fungsi untuk mengambil pesan baru tanpa refresh**
-        async function fetchNewMessages(sender, receiver) {
-            if (!lastMessageId) return; // Jika belum ada pesan, abaikan
-
-            try {
-                console.log(`🔄 Mengecek pesan baru sejak ID ${lastMessageId}...`);
-                const res = await fetch(`/api/chat/messages/${sender}/${receiver}?lastId=${lastMessageId}`);
-
-                if (!res.ok) {
-                    console.error("❌ Gagal mengambil pesan baru");
-                    return;
-                }
-
-                const messages = await res.json();
-                if (!Array.isArray(messages) || messages.length === 0) return;
-
-                console.log("📩 Pesan baru diterima:", messages);
-
-                messages.forEach(msg => {
-                    appendMessage(msg, msg.sender === sender);
-                });
-
-                lastMessageId = messages[messages.length - 1].id; // Update lastMessageId
-            } catch (error) {
-                console.error("Error fetching new messages:", error);
-            }
-        }
-
-               // Fungsi untuk menghapus pesan untuk semua orang
-async function deleteMessageForEveryone(messageId) {
-    try {
-        const response = await fetch(`/api/chat/delete-for-everyone/${messageId}`, { method: "DELETE" });
-
-        if (response.ok) {
-            console.log(`✅ Pesan ${messageId} dihapus untuk semua orang.`);
-            document.getElementById(`message-${messageId}`)?.remove();
-            
-            // Emit event ke WebSocket agar user lain menghapus pesan juga
-            socket.emit("deleteMessage", { messageId });
-        } else {
-            console.error("❌ Gagal menghapus pesan untuk semua orang:", await response.text());
-        }
-    } catch (error) {
-        console.error("Error menghapus pesan untuk semua orang:", error);
     }
+
+            // Fungsi untuk menghapus pesan untuk semua orang
+async function deleteMessageForEveryone(messageId) {
+try {
+    const response = await fetch(`/api/chat/delete-for-everyone/${messageId}`, { method: "DELETE" });
+
+    if (response.ok) {
+        console.log(`✅ Pesan ${messageId} dihapus untuk semua orang.`);
+        document.getElementById(`message-${messageId}`)?.remove();
+        
+        // Emit event ke WebSocket agar user lain menghapus pesan juga
+        socket.emit("deleteMessage", { messageId });
+    } else {
+        console.error("❌ Gagal menghapus pesan untuk semua orang:", await response.text());
+    }
+} catch (error) {
+    console.error("Error menghapus pesan untuk semua orang:", error);
+}
 }
 
 // Event listener WebSocket untuk menangani penghapusan pesan dari user lain
 socket.on("messageDeleted", ({ messageId }) => {
-    console.log(`🗑️ Pesan ${messageId} dihapus oleh pengirim`);
-    document.getElementById(`message-${messageId}`)?.remove();
+console.log(`🗑️ Pesan ${messageId} dihapus oleh pengirim`);
+document.getElementById(`message-${messageId}`)?.remove();
 });
 
 
-        async function deleteChat(receiver) {
-            if (!currentUser) {
-                console.error("Error: currentUser is not defined");
-                alert("Error: User is not identified.");
-                return;
-            }
-
-            console.log(`Menghapus chat antara ${currentUser} dan ${receiver}`);
-
-            if (!confirm(`Are you sure you want to delete chat with ${receiver}?`)) return;
-
-            try {
-                const res = await fetch(`/api/chat/delete/${currentUser}/${receiver}`, {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" }
-                });
-
-                console.log("Response status:", res.status);
-
-                if (!res.ok) {
-                    const errorText = await res.text(); // Tangani respons HTML
-                    console.error("Server response:", errorText);
-                    throw new Error(`Failed to delete chat: ${errorText}`);
-                }
-
-                const data = await res.json();
-                if (data.success) {
-                    alert("Chat deleted successfully.");
-                    document.getElementById("chat-box").innerHTML = ""; // Kosongkan chat
-                } else {
-                    alert("Failed to delete chat: " + data.message);
-                }
-            } catch (error) {
-                console.error("Error deleting chat:", error);
-                alert("Error deleting chat. Check console for details.");
-            }
+    async function deleteChat(receiver) {
+        if (!currentUser) {
+            console.error("Error: currentUser is not defined");
+            alert("Error: User is not identified.");
+            return;
         }
 
+        console.log(`Menghapus chat antara ${currentUser} dan ${receiver}`);
 
+        if (!confirm(`Are you sure you want to delete chat with ${receiver}?`)) return;
 
+        try {
+            const res = await fetch(`/api/chat/delete/${currentUser}/${receiver}`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+            });
 
-        // Panggil fetchUsers() saat halaman selesai dimuat
-        document.addEventListener("DOMContentLoaded", async () => {
-            await checkAuth(); // Pastikan currentUser di-set sebelum fetchUsers
-            fetchUsers();
-        });
+            console.log("Response status:", res.status);
 
-        function logout() {
-            if (confirm("Are you sure you want to log out?")) {
-                // Hapus data user dari localStorage atau sessionStorage
-                localStorage.removeItem("currentUser");
-                sessionStorage.removeItem("currentUser");
-
-                // Redirect ke halaman login
-                window.location.href = "/";
+            if (!res.ok) {
+                const errorText = await res.text(); // Tangani respons HTML
+                console.error("Server response:", errorText);
+                throw new Error(`Failed to delete chat: ${errorText}`);
             }
+
+            const data = await res.json();
+            if (data.success) {
+                alert("Chat deleted successfully.");
+                document.getElementById("chat-box").innerHTML = ""; // Kosongkan chat
+            } else {
+                alert("Failed to delete chat: " + data.message);
+            }
+        } catch (error) {
+            console.error("Error deleting chat:", error);
+            alert("Error deleting chat. Check console for details.");
         }
-    </script>
+    }
+
+
+
+
+    // Panggil fetchUsers() saat halaman selesai dimuat
+    document.addEventListener("DOMContentLoaded", async () => {
+        await checkAuth(); // Pastikan currentUser di-set sebelum fetchUsers
+        fetchUsers();
+    });
+
+    function logout() {
+        if (confirm("Are you sure you want to log out?")) {
+            // Hapus data user dari localStorage atau sessionStorage
+            localStorage.removeItem("currentUser");
+            sessionStorage.removeItem("currentUser");
+
+            // Redirect ke halaman login
+            window.location.href = "/";
+        }
+    }
+</script>
 </head>
 
 <body class="bg-gray-100 flex">
 
-    <!-- Sidebar -->
-    <div id="sidebar"
-        class="fixed inset-y-0 left-0 w-56 bg-blue-800 text-white transform -translate-x-full md:translate-x-0 transition-transform duration-300 md:relative">
-        <div class="p-4 flex items-center justify-between">
-            <h2 class="text-xl font-bold">Dashboard</h2>
-            <button class="md:hidden" onclick="toggleSidebar()">✖</button>
-        </div>
-        <nav class="mt-2">
-            <a href="#" onclick="showContent('users')" class="block py-2 px-4 hover:bg-blue-700">Users</a>
-            <a href="#" onclick="showContent('settings')" class="block py-2 px-4 hover:bg-blue-700">Settings</a>
-            <a href="#" onclick="logout()" class="block py-2 px-4 hover:bg-blue-700">Logout</a>
-        </nav>
+<!-- Sidebar -->
+<div id="sidebar"
+    class="fixed inset-y-0 left-0 w-56 bg-blue-800 text-white transform -translate-x-full md:translate-x-0 transition-transform duration-300 md:relative">
+    <div class="p-4 flex items-center justify-between">
+        <h2 class="text-xl font-bold">Dashboard</h2>
+        <button class="md:hidden" onclick="toggleSidebar()">✖</button>
     </div>
+    <nav class="mt-2">
+        <a href="#" onclick="showContent('users')" class="block py-2 px-4 hover:bg-blue-700">Users</a>
+        <a href="#" onclick="showContent('settings')" class="block py-2 px-4 hover:bg-blue-700">Settings</a>
+        <a href="#" onclick="logout()" class="block py-2 px-4 hover:bg-blue-700">Logout</a>
+    </nav>
+</div>
 
-    <!-- Main Content -->
-    <div class="flex-1 min-h-screen p-4 ml-0 w-full">
-        <header class="flex justify-between items-center bg-white p-4 shadow-md">
-            <button class="md:hidden" onclick="toggleSidebar()">☰</button>
-            <h1 class="text-2xl font-bold">Users Dashboard</h1>
-        </header>
+<!-- Main Content -->
+<div class="flex-1 min-h-screen p-4 ml-0 w-full">
+    <header class="flex justify-between items-center bg-white p-4 shadow-md">
+        <button class="md:hidden" onclick="toggleSidebar()">☰</button>
+        <h1 class="text-2xl font-bold">Users Dashboard</h1>
+    </header>
 
-        <!-- Dynamic Content -->
-        <div id="main-content" class="mt-4 bg-white p-4 rounded-lg shadow-md">
-            <h2 class="text-xl font-semibold">Loading users...</h2>
-        </div>
+    <!-- Dynamic Content -->
+    <div id="main-content" class="mt-4 bg-white p-4 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold">Loading users...</h2>
     </div>
+</div>
 
-    <script>
-        document.addEventListener("DOMContentLoaded", fetchUsers);
-    </script>
+<script>
+    document.addEventListener("DOMContentLoaded", fetchUsers);
+</script>
 
 </body>
 
