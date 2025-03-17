@@ -108,27 +108,31 @@ app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // T
 
 app.get("/api/chat/messages/:sender/:receiver", async (req, res) => {
     const { sender, receiver } = req.params;
-    const lastId = req.query.lastId || 0;
+    const lastId = req.query.lastId || 0;  // Untuk polling pesan baru
 
     try {
-        console.log(`📥 Mengambil pesan antara ${sender} dan ${receiver} sejak ID ${lastId}`);
+        console.log(`📥 Mengambil pesan antara ${sender} dan ${receiver}...`);
 
         const { data, error } = await supabase
             .from("messages")
             .select("*")
-            .or(`(sender.eq.${sender},receiver.eq.${receiver})`)
-            .neq("deleted_for_user", true) // 🔥 Pastikan pesan yang dihapus tidak diambil
-            .gt("id", lastId) // Ambil hanya pesan baru
+            .or(`(sender.eq.${sender},receiver.eq.${receiver}), (sender.eq.${receiver},receiver.eq.${sender})`)
+            .gt("id", lastId) // Hanya ambil pesan baru
+            .neq("deleted_for_user", true) // Filter pesan yang dihapus untuk user tertentu
             .order("id", { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
-        res.status(200).json(data);
+        console.log("📨 Pesan diterima:", data);
+        res.json(data);
     } catch (error) {
         console.error("❌ ERROR mengambil pesan:", error.message);
         res.status(500).json({ error: "Gagal mengambil pesan", detail: error.message });
     }
 });
+
 
 app.delete("/api/chat/delete-for-me/:messageId", async (req, res) => {
     const { messageId } = req.params;
