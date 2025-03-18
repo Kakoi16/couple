@@ -284,6 +284,9 @@ app.use("/api/chat", chatRoutes);
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "index.html"));
 });
+app.get("/maps", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "maps.html"));
+});
 
 app.get("/registered", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "register.html"));

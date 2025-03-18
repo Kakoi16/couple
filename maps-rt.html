@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Location Tracking</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #map { width: 100%; height: 500px; margin-top: 20px; }
+        button { padding: 10px 15px; margin-top: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<h2>Live Tracking Seperti Gojek</h2>
+<button onclick="mulaiTracking()">Mulai Tracking</button>
+<div id="map"></div>
+
+<script>
+    // 🔹 Konfigurasi Firebase (Ganti dengan config milikmu dari Firebase Console)
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        databaseURL: "https://realtime-database-80b92-default-rtdb.firebaseio.com/",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+    
+    // 🔹 Inisialisasi Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // 🔹 Token Mapbox (Ganti dengan token milikmu)
+    mapboxgl.accessToken = 'pk.eyJ1IjoiY2VpaWF1bWQiLCJhIjoiY204ZWdwaHhqMDFweDJsc2NjeHE0Y3RuaCJ9.2hkh_3P2vpB0oydxJUOv6A';
+
+    // 🔹 Buat Map dengan posisi default
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/streets-v11',
+        center: [107.3041, -6.3227], // Default ke Karawang
+        zoom: 14
+    });
+
+    let marker = new mapboxgl.Marker({ color: "red" }).setLngLat([107.3041, -6.3227]).addTo(map);
+
+    // 🔹 Fungsi untuk mulai tracking lokasi
+    function mulaiTracking() {
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(position => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+
+                // 🔹 Update marker ke lokasi baru
+                marker.setLngLat([lng, lat]);
+                map.flyTo({ center: [lng, lat], zoom: 14 });
+
+                // 🔹 Simpan lokasi ke Firebase
+                database.ref('locations/user1').set({ latitude: lat, longitude: lng });
+            }, 
+            error => console.error("Gagal mendapatkan lokasi:", error), 
+            { enableHighAccuracy: true });
+        } else {
+            alert("Geolocation tidak didukung di browser ini.");
+        }
+    }
+
+    // 🔹 Fungsi untuk mendeteksi perubahan lokasi user di Firebase (Real-time)
+    database.ref('locations/user1').on('value', snapshot => {
+        const data = snapshot.val();
+        if (data) {
+            marker.setLngLat([data.longitude, data.latitude]);
+            map.flyTo({ center: [data.longitude, data.latitude], zoom: 14 });
+        }
+    });
+
+</script>
+
+</body>
+</html>

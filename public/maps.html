@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Tracking Firebase + Mapbox</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    <script type="module">
+        // 🔹 Import Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-analytics.js";
+
+        // 🔹 Konfigurasi Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCBO_b2rh_4PJbyqjoriStHjG5msDXL-xI",
+            authDomain: "realtime-database-80b92.firebaseapp.com",
+            databaseURL: "https://realtime-database-80b92-default-rtdb.firebaseio.com",
+            projectId: "realtime-database-80b92",
+            storageBucket: "realtime-database-80b92.firebasestorage.app",
+            messagingSenderId: "416649698001",
+            appId: "1:416649698001:web:88a3a89a3894c4dd6fc3f0",
+            measurementId: "G-ZP2ZQW2RLF"
+        };
+
+        // 🔹 Inisialisasi Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const database = getDatabase(app);
+
+        // 🔹 Inisialisasi Mapbox
+        mapboxgl.accessToken = 'pk.eyJ1IjoiY2VpaWF1bWQiLCJhIjoiY204ZWdwaHhqMDFweDJsc2NjeHE0Y3RuaCJ9.2hkh_3P2vpB0oydxJUOv6A';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            center: [107.3041, -6.3227], // Default ke Karawang
+            zoom: 14
+        });
+
+        // 🔹 Buat marker dan circle untuk menunjukkan lokasi user
+        let marker = new mapboxgl.Marker({ color: "red" }).setLngLat([107.3041, -6.3227]).addTo(map);
+        let circle = new mapboxgl.Marker({
+            color: "blue"
+        }).setLngLat([107.3041, -6.3227]).addTo(map);
+
+        // 🔹 Fungsi untuk update lokasi ke Firebase
+        function mulaiTracking() {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(position => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    console.log(`Koordinat diperbarui: ${lat}, ${lng}`);
+
+                    // 🔹 Update marker di peta
+                    marker.setLngLat([lng, lat]);
+                    circle.setLngLat([lng, lat]);
+
+                    map.flyTo({ center: [lng, lat], zoom: 14 });
+
+                    // 🔹 Simpan lokasi ke Firebase
+                    set(ref(database, 'locations/user1'), { latitude: lat, longitude: lng });
+                }, 
+                error => console.error("Gagal mendapatkan lokasi:", error), 
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 });
+            } else {
+                alert("Geolocation tidak didukung di browser ini.");
+            }
+        }
+
+        // 🔹 Pantau perubahan lokasi di Firebase (Real-time)
+        onValue(ref(database, 'locations/user1'), (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log(`Dapat data dari Firebase: ${data.latitude}, ${data.longitude}`);
+                marker.setLngLat([data.longitude, data.latitude]);
+                circle.setLngLat([data.longitude, data.latitude]);
+                map.flyTo({ center: [data.longitude, data.latitude], zoom: 14 });
+            }
+        });
+
+        // 🔹 Event listener untuk tombol tracking
+        window.mulaiTracking = mulaiTracking;
+    </script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #map { width: 100%; height: 500px; margin-top: 20px; }
+        button { padding: 10px 15px; margin-top: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<h2>Live Tracking Firebase + Mapbox</h2>
+<button onclick="mulaiTracking()">Mulai Tracking</button>
+<div id="map"></div>
+
+</body>
+</html>
