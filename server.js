@@ -85,7 +85,7 @@ io.on('connection', (socket) => {
 
 
 // Simpan lokasi pengguna
-app.get('/api/location', async (req, res) => {
+app.get('/api/locations', async (req, res) => {
     console.log("📌 Menerima request GET ke /api/location");
     console.log("🔍 Debug Session:", req.session);
 
