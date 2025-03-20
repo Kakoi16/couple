@@ -30,6 +30,12 @@
     }
 
     document.addEventListener("DOMContentLoaded", checkAuth);
+    const res = await fetch('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // 🔹 Pastikan ini ada!
+    body: JSON.stringify({ email, password })
+});
 
 
     function toggleSidebar() {

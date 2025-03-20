@@ -20,9 +20,10 @@ const app = express();
 const port = 3000;
 app.use(cookieParser());
 app.use(cors({
-    origin: 'https://couple-production.up.railway.app/', // Sesuaikan dengan alamat frontend
-    credentials: true // 🔹 Mengizinkan cookie session dikirim
+    origin: 'https://couple-production.up.railway.app', // Sesuaikan dengan alamat frontend
+    credentials: true // 🔹 HARUS TRUE agar cookie dikirim
 }));
+
 
 app.use(express.json());
 
@@ -35,16 +36,19 @@ const io = new Server(server);
 // Middleware lainnya
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
-app.use(session({
-    secret: 'niga', // Ganti dengan kunci rahasia yang aman
-    resave: false,
-    saveUninitialized: false,
+const sessionMiddleware = session({
+    secret: 'niga', // Ganti dengan key yang lebih aman
+    resave: true,  // Ubah ke `true` agar session tetap disimpan meskipun tidak ada perubahan
+    saveUninitialized: true,  // Ubah ke `true` agar session tetap dibuat untuk user baru
     cookie: {
-        secure: process.env.NODE_ENV === "production", // Hanya true di HTTPS
+        secure: false, // Ubah ke `true` jika pakai HTTPS
         httpOnly: true,
+        sameSite: 'lax', // Pastikan cookie bisa dikirim dengan `credentials: true`
         maxAge: 24 * 60 * 60 * 1000 // 1 hari
     }
-}));
+});
+
+app.use(sessionMiddleware);
 
 
 app.use((req, res, next) => {
@@ -55,35 +59,50 @@ console.log("Database PostgreSQL siap!");
 
 
 console.log("Database & tabel siap");
+
+const sharedSession = require("express-socket.io-session");
+
+io.use(sharedSession(sessionMiddleware, {
+    autoSave: true // Pastikan session tetap tersimpan
+}));
+
+
 // =======================
 // == SETUP WEBSOCKET ==
 // =======================
 // WebSocket
-io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
+io.on("connection", (socket) => {
+    console.log("✅ User connected:", socket.id);
+
+    // 🔍 Debug: Cek session saat koneksi WebSocket
+    console.log("📌 WebSocket Session:", socket.handshake.session);
 
     socket.on("sendMessage", async (data) => {
         const { sender, receiver, message } = data;
         try {
-            const { data, error } = await supabase
-            .from('messages')
-            .insert([{ sender, receiver, message }])
-            .select();
-          
-          if (error) throw error;
-          const messageId = data[0].id;          
+            const { data: savedData, error } = await supabase
+                .from('messages')
+                .insert([{ sender, receiver, message }])
+                .select();
+
+            if (error) throw error;
+
+            const messageId = savedData[0].id;
             const savedMessage = { id: messageId, sender, receiver, message };
+
+            // Kirim pesan ke pengirim dan penerima
             socket.emit("messageSaved", savedMessage);
             socket.to(receiver).emit("newMessage", savedMessage);
         } catch (error) {
-            console.error("Gagal menyimpan pesan:", error);
+            console.error("❌ Gagal menyimpan pesan:", error);
         }
     });
 
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
+    socket.on("disconnect", () => {
+        console.log("❌ User disconnected:", socket.id);
     });
 });
+
 
 
 // Simpan lokasi pengguna
