@@ -4,6 +4,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const http = require('http'); 
 const { Server } = require('socket.io'); 
 const { createClient } = require('@supabase/supabase-js');
@@ -17,7 +18,7 @@ console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY ? "✅ Terbaca" : "❌ Tid
 
 const app = express();
 const port = 3000;
-
+app.use(cookieParser());
 app.use(cors({
     origin: 'https://couple-production.up.railway.app/', // Sesuaikan dengan alamat frontend
     credentials: true // 🔹 Mengizinkan cookie session dikirim
@@ -35,15 +36,16 @@ const io = new Server(server);
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use(session({
-    secret: 'yattajh',
+    secret: 'niga', // Ganti dengan kunci rahasia yang aman
     resave: false,
     saveUninitialized: false,
-    cookie: { 
-        secure: process.env.NODE_ENV === "production", // 🔹 Aktifkan secure jika di hosting
+    cookie: {
+        secure: process.env.NODE_ENV === "production", // Hanya true di HTTPS
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000
+        maxAge: 24 * 60 * 60 * 1000 // 1 hari
     }
 }));
+
 
 app.use((req, res, next) => {
     console.log("📌 Debug Session:", req.session);
