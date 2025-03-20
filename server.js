@@ -380,9 +380,6 @@ app.get("/users", (req, res) => {
     }
     res.sendFile(path.join(__dirname, "public", "users.html"));
 });
-
-console.log("DATABASE_URL:", process.env.DATABASE_URL);
-
 // ==================
 // == START SERVER ==
 // ==================
