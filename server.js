@@ -49,10 +49,6 @@ app.use((req, res, next) => {
     console.log("📌 Debug Session:", req.session);
     next();
 });
-app.use((req, res) => {
-    res.status(404).json({ success: false, message: "Route tidak ditemukan!" });
-});
-
 console.log("Database PostgreSQL siap!");
 
 
