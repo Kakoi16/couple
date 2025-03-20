@@ -257,28 +257,40 @@ async function sendLocation(lat, lng) {
     const socket = io(); // Inisialisasi koneksi WebSocket sekali saja di awal
     // **Tambahkan fungsi fetchUsers() di luar event listener**
     async function fetchUsers() {
-        try {
-            let response = await fetch('/api/users');
-            if (!response.ok) {
-                throw new Error(`Gagal memuat: ${response.status}`);
-            }
-
-            let users = await response.json();
-            let content = document.getElementById("main-content");
-            content.innerHTML = `<h2 class="text-xl font-semibold">Users</h2><ul id="user-list"></ul>`;
-
-            let ul = document.getElementById("user-list");
-            users.forEach(user => {
-                let li = document.createElement("li");
-                li.classList.add("p-2", "border-b", "cursor-pointer");
-                li.textContent = user.username;
-                li.onclick = () => startChat(user.username);
-                ul.appendChild(li);
-            });
-        } catch (error) {
-            console.error("Error fetching users:", error.message);
+    try {
+        console.log("🔍 Fetching users...");
+        let response = await fetch('/api/users');
+        
+        if (!response.ok) {
+            throw new Error(`Gagal memuat: ${response.status}`);
         }
+
+        let users = await response.json();
+        console.log("✅ Data pengguna diterima:", users);
+
+        let content = document.getElementById("main-content");
+        if (!content) {
+            console.error("❌ Elemen #main-content tidak ditemukan di HTML!");
+            return;
+        }
+
+        content.innerHTML = `<h2 class="text-xl font-semibold">Users</h2><ul id="user-list"></ul>`;
+
+        let ul = document.getElementById("user-list");
+        users.forEach(user => {
+            let li = document.createElement("li");
+            li.classList.add("p-2", "border-b", "cursor-pointer");
+            li.textContent = user.username;
+            li.onclick = () => startChat(user.username);
+            ul.appendChild(li);
+        });
+
+        console.log("✅ Users ditampilkan di halaman!");
+    } catch (error) {
+        console.error("❌ Error fetching users:", error.message);
     }
+}
+
     // Fungsi untuk mulai chat
     let lastMessageId = null; // Menyimpan ID pesan terakhir agar tidak duplikat
 

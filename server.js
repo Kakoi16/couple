@@ -361,16 +361,14 @@ app.post('/logout', (req, res) => {
 // **Ambil Semua Pengguna**
 app.get('/api/users', async (req, res) => {
     try {
-        const { data, error } = await supabase
-            .from('users') // Sesuaikan dengan nama tabel di Supabase
-            .select('id, username');
-
+        let { data, error } = await supabase.from("users").select("id, username");
+        
         if (error) throw error;
-
+        
         res.json(data);
     } catch (err) {
-        console.error("Database Error:", err.message);
-        res.status(500).json({ message: "Gagal mengambil data pengguna." });
+        console.error("❌ Error mengambil pengguna:", err);
+        res.status(500).json({ message: "Gagal mengambil pengguna" });
     }
 });
 
