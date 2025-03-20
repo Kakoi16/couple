@@ -131,6 +131,23 @@ app.post('/api/locations', async (req, res) => {
     }
 });
 
+app.get('/api/locations', async (req, res) => {
+    console.log("📌 Menerima request GET ke /api/locations");
+
+    try {
+        const { data, error } = await supabase
+            .from("user_locations")
+            .select("user_id, latitude, longitude");
+
+        if (error) throw error;
+
+        console.log("✅ Data lokasi pengguna:", data);
+        res.json(data);
+    } catch (err) {
+        console.error("❌ Gagal mengambil lokasi pengguna:", err);
+        res.status(500).json({ message: "Kesalahan server." });
+    }
+});
 
 
 app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // Tambahkan async
