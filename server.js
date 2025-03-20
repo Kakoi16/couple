@@ -85,51 +85,34 @@ io.on('connection', (socket) => {
 
 
 // Simpan lokasi pengguna
-app.post('/api/location', async (req, res) => {
-    console.log("📌 Menerima request ke /api/location");
-    console.log("🔍 Debug Session:", req.session); // 🛠 Cek apakah session tersedia
+app.get('/api/location', async (req, res) => {
+    console.log("📌 Menerima request GET ke /api/location");
+    console.log("🔍 Debug Session:", req.session);
 
     if (!req.session || !req.session.user) {
         console.log("❌ Unauthorized: Session tidak ditemukan");
         return res.status(401).json({ message: "Unauthorized! Silakan login dulu." });
     }
 
-    const user_id = req.session.user.id;  // 🔹 Perbaikan akses session
-    let { latitude, longitude } = req.body;
-
-    console.log(`📌 User ${user_id} mengirim lokasi: ${latitude}, ${longitude}`);
-
-    if (!latitude || !longitude) {
-        console.log("❌ Data lokasi tidak lengkap!");
-        return res.status(400).json({ message: "Data tidak lengkap!" });
-    }
-
-    latitude = Number(latitude);
-    longitude = Number(longitude);
-
-    if (isNaN(latitude) || isNaN(longitude)) {
-        console.log("❌ Data lokasi bukan angka!");
-        return res.status(400).json({ message: "Format data tidak valid!" });
-    }
+    const user_id = req.session.user.id;
 
     try {
-        const { error } = await supabase
-            .from('user_locations')
-            .upsert([{ 
-                user_id,  // 🔹 Ambil dari session
-                latitude, 
-                longitude, 
-                updated_at: new Date().toISOString() 
-            }]);
+        const { data, error } = await supabase
+            .from("user_locations")
+            .select("*")
+            .eq("user_id", user_id)
+            .single();
 
         if (error) throw error;
-        console.log("✅ Lokasi berhasil diperbarui di database!");
-        res.json({ success: true, message: "Lokasi diperbarui!" });
+
+        console.log("✅ Lokasi ditemukan:", data);
+        res.json(data);
     } catch (err) {
-        console.error("❌ Gagal menyimpan lokasi:", err);
-        res.status(500).json({ success: false, message: "Kesalahan server." });
+        console.error("❌ Gagal mengambil lokasi pengguna:", err);
+        res.status(500).json({ message: "Kesalahan server." });
     }
 });
+
 
 
 
