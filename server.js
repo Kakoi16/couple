@@ -87,6 +87,9 @@ io.on('connection', (socket) => {
 // Simpan lokasi pengguna
 app.post('/api/locations', async (req, res) => {
     console.log("📌 Menerima request POST ke /api/locations");
+    console.log("🔍 Header:", req.headers);
+    console.log("🔍 Body:", req.body);
+    console.log("🔍 Session:", req.session);
 
     if (!req.session || !req.session.user) {
         console.log("❌ Unauthorized: Session tidak ditemukan");
@@ -96,17 +99,15 @@ app.post('/api/locations', async (req, res) => {
     const user_id = req.session.user.id;
     let { latitude, longitude } = req.body;
 
-    console.log(`📌 User ${user_id} mengirim lokasi: ${latitude}, ${longitude}`);
-
     if (!latitude || !longitude) {
-        return res.status(400).json({ message: "Data tidak lengkap!" });
+        return res.status(400).json({ message: "Latitude dan Longitude diperlukan!" });
     }
 
     latitude = Number(latitude);
     longitude = Number(longitude);
 
     if (isNaN(latitude) || isNaN(longitude)) {
-        return res.status(400).json({ message: "Format data tidak valid!" });
+        return res.status(400).json({ message: "Latitude dan Longitude harus berupa angka!" });
     }
 
     try {
@@ -124,17 +125,19 @@ app.post('/api/locations', async (req, res) => {
         if (error) throw error;
 
         console.log("✅ Lokasi pengguna diperbarui!");
-        res.json({ success: true, message: "Lokasi berhasil diperbarui!" });
+        res.status(200).json({ success: true, message: "Lokasi berhasil diperbarui!" });
     } catch (err) {
         console.error("❌ Gagal menyimpan lokasi:", err);
         res.status(500).json({ success: false, message: "Kesalahan server." });
     }
 });
 
+
 app.get('/api/locations', async (req, res) => {
     console.log("📌 Menerima request GET ke /api/locations");
 
     try {
+        // Ambil semua lokasi pengguna dari database
         const { data, error } = await supabase
             .from("user_locations")
             .select("user_id, latitude, longitude");
@@ -142,12 +145,13 @@ app.get('/api/locations', async (req, res) => {
         if (error) throw error;
 
         console.log("✅ Data lokasi pengguna:", data);
-        res.json(data);
+        res.status(200).json(data);
     } catch (err) {
         console.error("❌ Gagal mengambil lokasi pengguna:", err);
         res.status(500).json({ message: "Kesalahan server." });
     }
 });
+
 
 
 app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // Tambahkan async
