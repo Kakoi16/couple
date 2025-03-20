@@ -96,22 +96,29 @@ function fetchMaps() {
 
         // **Tambahkan fetchAllUserLocations di sini**
         async function fetchAllUserLocations(map) {
-            try {
-                const response = await fetch('https://couple-production.up.railway.app/api/locations'); 
+    try {
+        const response = await fetch('https://couple-production.up.railway.app/api/locations');
 
-                if (!response.ok) throw new Error("Gagal mengambil data lokasi");
-
-                const users = await response.json();
-                users.forEach(user => {
-                    new mapboxgl.Marker({ color: "blue" })
-                        .setLngLat([user.longitude, user.latitude])
-                        .setPopup(new mapboxgl.Popup().setText(`User ${user.user_id}`))
-                        .addTo(map);
-                });
-            } catch (error) {
-                console.error("Error fetching locations:", error);
-            }
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error("❌ Server Response:", errorData);
+            throw new Error(errorData.message || "Gagal mengambil data lokasi");
         }
+
+        const users = await response.json();
+        console.log("✅ Data lokasi pengguna:", users);
+
+        users.forEach(user => {
+            new mapboxgl.Marker({ color: "blue" })
+                .setLngLat([user.longitude, user.latitude])
+                .setPopup(new mapboxgl.Popup().setText(`User ${user.user_id}`))
+                .addTo(map);
+        });
+    } catch (error) {
+        console.error("❌ Error fetching locations:", error);
+    }
+}
+
 
         // Panggil fungsi untuk mendapatkan semua lokasi pengguna
         fetchAllUserLocations(map);
@@ -207,7 +214,7 @@ async function sendLocation(lat, lng) {
 
         if (!response.ok) {
             const errorData = await response.json();
-            console.error("Server Response:", errorData);
+            console.error("❌ Server Response:", errorData);
             throw new Error(errorData.message);
         }
 

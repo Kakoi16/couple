@@ -85,9 +85,8 @@ io.on('connection', (socket) => {
 
 
 // Simpan lokasi pengguna
-app.get('/api/locations', async (req, res) => {
-    console.log("📌 Menerima request GET ke /api/location");
-    console.log("🔍 Debug Session:", req.session);
+app.post('/api/locations', async (req, res) => {
+    console.log("📌 Menerima request POST ke /api/locations");
 
     if (!req.session || !req.session.user) {
         console.log("❌ Unauthorized: Session tidak ditemukan");
@@ -95,41 +94,42 @@ app.get('/api/locations', async (req, res) => {
     }
 
     const user_id = req.session.user.id;
+    let { latitude, longitude } = req.body;
+
+    console.log(`📌 User ${user_id} mengirim lokasi: ${latitude}, ${longitude}`);
+
+    if (!latitude || !longitude) {
+        return res.status(400).json({ message: "Data tidak lengkap!" });
+    }
+
+    latitude = Number(latitude);
+    longitude = Number(longitude);
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+        return res.status(400).json({ message: "Format data tidak valid!" });
+    }
 
     try {
-        const { data, error } = await supabase
+        const { error } = await supabase
             .from("user_locations")
-            .select("*")
-            .eq("user_id", user_id)
-            .single();
+            .upsert([
+                {
+                    user_id,
+                    latitude,
+                    longitude,
+                    updated_at: new Date().toISOString(),
+                },
+            ]);
 
         if (error) throw error;
 
-        console.log("✅ Lokasi ditemukan:", data);
-        res.json(data);
+        console.log("✅ Lokasi pengguna diperbarui!");
+        res.json({ success: true, message: "Lokasi berhasil diperbarui!" });
     } catch (err) {
-        console.error("❌ Gagal mengambil lokasi pengguna:", err);
-        res.status(500).json({ message: "Kesalahan server." });
+        console.error("❌ Gagal menyimpan lokasi:", err);
+        res.status(500).json({ success: false, message: "Kesalahan server." });
     }
 });
-
-
-
-
-
-// Ambil semua lokasi pengguna
-app.get("/api/locations", async (req, res) => {
-    try {
-        const { data, error } = await supabase.from("user_locations").select("*");
-
-        if (error) throw error;
-        res.json(data);
-    } catch (err) {
-        console.error("Gagal mengambil lokasi:", err);
-        res.status(500).json({ message: "Kesalahan server." });
-    }
-});
-
 
 
 
