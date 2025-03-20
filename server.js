@@ -18,7 +18,11 @@ console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY ? "✅ Terbaca" : "❌ Tid
 const app = express();
 const port = 3000;
 
-app.use(cors());
+app.use(cors({
+    origin: 'https://couple-production.up.railway.app/', // Sesuaikan dengan alamat frontend
+    credentials: true // 🔹 Mengizinkan cookie session dikirim
+}));
+
 app.use(express.json());
 
 const chatRoutes = require('./routes/chatRoutes');
@@ -40,6 +44,10 @@ app.use(session({
         maxAge: 24 * 60 * 60 * 1000  // Sesi berlaku 1 hari
     }
 }));
+app.use((req, res, next) => {
+    console.log("📌 Debug Session:", req.session);
+    next();
+});
 
 console.log("Database PostgreSQL siap!");
 
@@ -74,6 +82,65 @@ io.on('connection', (socket) => {
         console.log('User disconnected:', socket.id);
     });
 });
+
+
+// Simpan lokasi pengguna
+app.post('/api/location', async (req, res) => {
+    if (!req.session.user) {
+        return res.status(401).json({ message: "Unauthorized! Silakan login dulu." });
+    }
+
+    const user_id = req.session.user.id;  // 🔹 Perbaikan akses session
+    let { latitude, longitude } = req.body;
+
+    console.log(`📌 User ${user_id} mengirim lokasi: ${latitude}, ${longitude}`);
+
+    if (!latitude || !longitude) {
+        return res.status(400).json({ message: "Data tidak lengkap!" });
+    }
+
+    latitude = Number(latitude);
+    longitude = Number(longitude);
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+        return res.status(400).json({ message: "Format data tidak valid!" });
+    }
+
+    try {
+        const { error } = await supabase
+            .from('user_locations')
+            .upsert([{ 
+                user_id,  // 🔹 Ambil dari session
+                latitude, 
+                longitude, 
+                updated_at: new Date().toISOString() 
+            }]);
+
+        if (error) throw error;
+        res.json({ success: true, message: "Lokasi diperbarui!" });
+    } catch (err) {
+        console.error("❌ Gagal menyimpan lokasi:", err);
+        res.status(500).json({ success: false, message: "Kesalahan server." });
+    }
+});
+
+
+
+// Ambil semua lokasi pengguna
+app.get("/api/locations", async (req, res) => {
+    try {
+        const { data, error } = await supabase.from("user_locations").select("*");
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        console.error("Gagal mengambil lokasi:", err);
+        res.status(500).json({ message: "Kesalahan server." });
+    }
+});
+
+
+
 
 app.put('/api/chat/delete-for-me/:messageId/:userId', async (req, res) => { // Tambahkan async
     const { messageId, userId } = req.params;
@@ -194,7 +261,7 @@ app.post('/register', async (req, res) => {
 // Login User
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
-    console.log("Menerima permintaan login:", { email, password });
+    console.log("📌 Menerima permintaan login:", { email });
 
     if (!email || !password) {
         return res.status(400).json({ success: false, message: "Email dan password harus diisi." });
@@ -219,6 +286,7 @@ app.post('/login', async (req, res) => {
             return res.status(401).json({ success: false, message: "Password salah." });
         }
 
+        // 🔹 Simpan sesi yang benar
         req.session.user = { id: user.id, username: user.username, email: user.email };
         console.log("✅ Sesi login berhasil:", req.session);
 
@@ -235,6 +303,7 @@ app.post('/login', async (req, res) => {
         res.status(500).json({ success: false, message: "Kesalahan server." });
     }
 });
+
 
 
 
