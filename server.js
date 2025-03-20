@@ -124,20 +124,19 @@ app.post('/api/locations', async (req, res) => {
 
         if (error) throw error;
 
-        console.log("✅ Lokasi pengguna diperbarui!");
+        console.log("Lokasi Pasanganku diperbarui!");
         res.status(200).json({ success: true, message: "Lokasi berhasil diperbarui!" });
     } catch (err) {
-        console.error("❌ Gagal menyimpan lokasi:", err);
+        console.error("Gagal menyimpan lokasi:", err);
         res.status(500).json({ success: false, message: "Kesalahan server." });
     }
 });
 
 
 app.get('/api/locations', async (req, res) => {
-    console.log("📌 Menerima request GET ke /api/locations");
+    console.log(" GET ke /api/locations");
 
     try {
-        // Ambil semua lokasi pengguna dari database
         const { data, error } = await supabase
             .from("user_locations")
             .select("user_id, latitude, longitude");
@@ -147,7 +146,7 @@ app.get('/api/locations', async (req, res) => {
         console.log("✅ Data lokasi pengguna:", data);
         res.status(200).json(data);
     } catch (err) {
-        console.error("❌ Gagal mengambil lokasi pengguna:", err);
+        console.error("Gagal mengambil lokasi pengguna:", err);
         res.status(500).json({ message: "Kesalahan server." });
     }
 });
