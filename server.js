@@ -35,18 +35,22 @@ const io = new Server(server);
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use(session({
-    secret: 'yattajh',  // Gunakan string yang lebih kompleks untuk keamanan
+    secret: 'yattajh',
     resave: false,
-    saveUninitialized: false,  // Ubah ke `false` agar sesi tidak dibuat tanpa autentikasi
+    saveUninitialized: false,
     cookie: { 
-        secure: false, // Gunakan `true` jika server sudah pakai HTTPS
-        httpOnly: true,  // Mencegah akses JS ke cookie
-        maxAge: 24 * 60 * 60 * 1000  // Sesi berlaku 1 hari
+        secure: process.env.NODE_ENV === "production", // 🔹 Aktifkan secure jika di hosting
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000
     }
 }));
+
 app.use((req, res, next) => {
     console.log("📌 Debug Session:", req.session);
     next();
+});
+app.use((req, res) => {
+    res.status(404).json({ success: false, message: "Route tidak ditemukan!" });
 });
 
 console.log("Database PostgreSQL siap!");
@@ -86,7 +90,11 @@ io.on('connection', (socket) => {
 
 // Simpan lokasi pengguna
 app.post('/api/location', async (req, res) => {
-    if (!req.session.user) {
+    console.log("📌 Menerima request ke /api/location");
+    console.log("🔍 Debug Session:", req.session); // 🛠 Cek apakah session tersedia
+
+    if (!req.session || !req.session.user) {
+        console.log("❌ Unauthorized: Session tidak ditemukan");
         return res.status(401).json({ message: "Unauthorized! Silakan login dulu." });
     }
 
@@ -96,6 +104,7 @@ app.post('/api/location', async (req, res) => {
     console.log(`📌 User ${user_id} mengirim lokasi: ${latitude}, ${longitude}`);
 
     if (!latitude || !longitude) {
+        console.log("❌ Data lokasi tidak lengkap!");
         return res.status(400).json({ message: "Data tidak lengkap!" });
     }
 
@@ -103,6 +112,7 @@ app.post('/api/location', async (req, res) => {
     longitude = Number(longitude);
 
     if (isNaN(latitude) || isNaN(longitude)) {
+        console.log("❌ Data lokasi bukan angka!");
         return res.status(400).json({ message: "Format data tidak valid!" });
     }
 
@@ -117,12 +127,14 @@ app.post('/api/location', async (req, res) => {
             }]);
 
         if (error) throw error;
+        console.log("✅ Lokasi berhasil diperbarui di database!");
         res.json({ success: true, message: "Lokasi diperbarui!" });
     } catch (err) {
         console.error("❌ Gagal menyimpan lokasi:", err);
         res.status(500).json({ success: false, message: "Kesalahan server." });
     }
 });
+
 
 
 
