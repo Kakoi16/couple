@@ -19,7 +19,7 @@ const app = express();
 const port = 3000;
 app.use(cookieParser());
 app.use(cors({
-    origin: 'https://couple-production.up.railway.app', // Sesuaikan dengan alamat frontend
+    origin: ['http://localhost:8100', 'https://couple-production.up.railway.app'],// Sesuaikan dengan alamat frontend
     credentials: true // 🔹 HARUS TRUE agar cookie dikirim
 }));
 
